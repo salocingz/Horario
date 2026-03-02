@@ -462,12 +462,14 @@ function useFirestore(fbConfig) {
     return true;
   }, [status]);
 
-  const subscribe = React.useCallback((onData) => {
+  const subscribe = React.useCallback((onData, onError) => {
     if (!opsRef.current || status !== 'connected') return () => {};
     const { db, doc, onSnapshot } = opsRef.current;
-    return onSnapshot(doc(db, docPath), snap => {
-      if (snap.exists()) onData(snap.data());
-    });
+    return onSnapshot(
+      doc(db, docPath),
+      snap => onData(snap.exists() ? snap.data() : null),
+      err => onError?.(err),
+    );
   }, [status]);
 
   return { ready: status === 'connected', status, save, subscribe };
@@ -545,7 +547,8 @@ export default function App() {
   const [courses,  setCourses]  = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [subjects, setSubjects] = useState([]);
-  const [schedule, setSchedule] = useState({});
+  const [schedule,  setSchedule]  = useState({});
+  const [mappings,  setMappings]   = useState({ teachers:{}, subjects:{} }); // learned corrections
   // Undo/redo history — stores snapshots of schedule only (lightweight)
   const history    = useRef([{}]); // array of schedule snapshots
   const historyIdx = useRef(0);    // pointer into history
@@ -586,6 +589,13 @@ export default function App() {
 
   const { ready: fbReady, status: fbStatus, save: fbSave, subscribe: fbSubscribe } = useFirestore(fbConfig);
 
+  // Keep latest local state for one-time Firebase seeding on first connect
+  const latestDataRef = useRef({ courses:[], teachers:[], subjects:[], schedule:{}, lastReport:null, mappings:{ teachers:{}, subjects:{} } });
+  useEffect(() => {
+    latestDataRef.current = { courses, teachers, subjects, schedule, lastReport, mappings };
+  }, [courses, teachers, subjects, schedule, lastReport, mappings]);
+  const seededFirebaseRef = useRef(false);
+
   // ── Load saved Firebase config on mount ───────────────────────────────────
   useEffect(() => {
     loadSavedFBConfig().then(cfg => {
@@ -597,18 +607,59 @@ export default function App() {
   useEffect(() => {
     if (!fbReady) return;
     setCloudStatus('syncing');
-    const unsub = fbSubscribe(data => {
-      if (data.courses)    setCourses(data.courses);
-      if (data.teachers)   setTeachers(data.teachers);
-      if (data.subjects)   setSubjects(data.subjects);
-      if (data.schedule)   setSchedule(data.schedule);
-      if (data.lastReport) setLastReport(data.lastReport);
+    const unsub = fbSubscribe((data) => {
+      // If doc exists, hydrate from cloud
+      if (data) {
+        seededFirebaseRef.current = true;
+        if (data.courses)    setCourses(data.courses);
+        if (data.teachers)   setTeachers(data.teachers);
+        if (data.subjects)   setSubjects(data.subjects);
+        if (data.schedule)   setSchedule(data.schedule);
+        if (data.lastReport) setLastReport(data.lastReport);
+        if (data.mappings)   setMappings(data.mappings);
+        setCloudStatus('saved');
+        return;
+      }
+
+      // Doc missing (first time using this Firebase project).
+      // If this browser already has local data, seed Firebase once so other devices can see it.
+      const local = latestDataRef.current;
+      const hasLocal =
+        (local.courses?.length || 0) > 0 ||
+        (local.teachers?.length || 0) > 0 ||
+        (local.subjects?.length || 0) > 0 ||
+        (local.schedule && Object.keys(local.schedule).length > 0);
+
+      if (!seededFirebaseRef.current && hasLocal) {
+        seededFirebaseRef.current = true;
+        (async () => {
+          try {
+            await fbSave({
+              courses:    local.courses,
+              teachers:   local.teachers,
+              subjects:   local.subjects,
+              schedule:   local.schedule,
+              lastReport: local.lastReport,
+              mappings:   local.mappings,
+            });
+          } catch (_) {
+            setCloudStatus('error');
+          }
+        })();
+        return;
+      }
+
+      // No cloud doc and no local data — just mark connected.
       setCloudStatus('saved');
+    }, (err) => {
+      setCloudStatus('error');
+      setMessage({ text: `Firebase: ${err?.message || 'Error de permisos o conexión'}`, type: 'error' });
+      setTimeout(() => setMessage(null), 4500);
     });
     return unsub;
-  }, [fbReady, fbSubscribe]);
+  }, [fbReady, fbSubscribe, fbSave]);
 
-  // ── Fallback: load from window.storage if no Firebase ────────────────────
+  // ── Fallback: load from localStorage if no Firebase ─────────────────────
   useEffect(() => {
     if (fbConfig) return; // Firebase will handle it
     (async () => {
@@ -621,14 +672,15 @@ export default function App() {
           if (d.subjects)   setSubjects(d.subjects);
           if (d.schedule)   setSchedule(d.schedule);
           if (d.lastReport) setLastReport(d.lastReport);
+          if (d.mappings)   setMappings(d.mappings);
         }
       } catch (_) {}
       setCloudStatus('saved');
     })();
   }, [fbConfig]);
 
-  const saveAll = useCallback(async (c, t, subj, s, report) => {
-    const data = { courses:c, teachers:t, subjects:subj, schedule:s, lastReport:report };
+  const saveAll = useCallback(async (c, t, subj, s, report, maps) => {
+    const data = { courses:c, teachers:t, subjects:subj, schedule:s, lastReport:report, mappings: maps ?? mappings };
     setCloudStatus('syncing');
     try {
       if (fbReady) {
@@ -638,36 +690,32 @@ export default function App() {
       }
       setCloudStatus('saved');
     } catch (_) { setCloudStatus('error'); }
-  }, [fbReady, fbSave]);
+  }, [fbReady, fbSave, mappings]);
 
-  // ── Parse + connect Firebase config (de Gemini) ──────────────────────────────────────
+  // ── Parse + connect Firebase config ──────────────────────────────────────
   const handleConnectFirebase = useCallback(async () => {
     setFbConfigErr('');
     let parsed = null;
 
     try {
-      // Estrategia a prueba de novatos: Buscar las variables directamente en el texto
-      // sin importar si hay imports, comentarios o código extra alrededor.
+      // Estrategia a prueba de novatos: buscar claves directamente en el texto,
+      // aunque hayan pegado el snippet completo con código alrededor.
       const keysToFind = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId', 'measurementId'];
       const extractedConfig = {};
 
       keysToFind.forEach(key => {
-        // Busca el patrón exacto (ej. apiKey: "valor" o apiKey: 'valor')
         const regex = new RegExp(`${key}\\s*:\\s*['"]([^'"]+)['"]`);
         const match = fbConfigText.match(regex);
-        if (match && match[1]) {
-          extractedConfig[key] = match[1];
-        }
+        if (match && match[1]) extractedConfig[key] = match[1];
       });
 
-      // Si encontró al menos las credenciales obligatorias, usamos lo extraído
       if (extractedConfig.apiKey && extractedConfig.projectId) {
         parsed = extractedConfig;
       } else {
-        // Fallback: por si pegaron un JSON puro muy estricto
+        // Fallback: JSON estricto
         try {
           parsed = JSON.parse(fbConfigText.trim());
-        } catch (jsonErr) {
+        } catch (_) {
           throw new Error('No se detectaron credenciales válidas en el texto.');
         }
       }
@@ -675,8 +723,7 @@ export default function App() {
       if (!parsed || !parsed.apiKey || !parsed.projectId) {
         throw new Error('Faltan campos obligatorios (apiKey, projectId).');
       }
-
-    } catch(e) {
+    } catch (_) {
       setFbConfigErr('No se pudo leer la configuración. Asegurate de copiar el bloque "const firebaseConfig = { ... }" que te da Firebase.');
       return;
     }
@@ -759,13 +806,20 @@ export default function App() {
     subjects.forEach(s => subjectByNorm.set(nc(s.name), s));
     const teacherMap = new Map(teachers.map(t => [nc(t.name), t]));
 
+    // Apply learned mappings: resolve raw CSV name → canonical name
+    const applyMapping = (raw, type) => {
+      if (!raw) return raw;
+      const key = nc(raw);
+      return mappings[type]?.[key] || raw;
+    };
+
     const newSchedule = {};
     const deduped = [];
     const skipped = [];
     let importedCount = 0;
 
     const getOrCreateSubject = (rawName) => {
-      const name = rawName.trim();
+      const name = applyMapping(rawName.trim(), 'subjects');
       if (!name) return null;
       const key = nc(name);
       if (subjectByNorm.has(key)) {
@@ -781,7 +835,7 @@ export default function App() {
     };
 
     const getOrCreateTeacher = (rawName) => {
-      const name = rawName.trim();
+      const name = applyMapping(rawName.trim(), 'teachers');
       if (!name || name.length < 2) return null;
       const key = nc(name);
       if (teacherMap.has(key)) return teacherMap.get(key);
@@ -942,21 +996,35 @@ export default function App() {
   };
   const mergeSubjects = (keepId, removeId) => {
     if (keepId===removeId) return;
+    const keepSubj   = subjects.find(s=>s.id===keepId);
+    const removeSubj = subjects.find(s=>s.id===removeId);
     const sched2 = {...schedule};
     Object.keys(sched2).forEach(k => { if (sched2[k].subjectId===removeId) sched2[k]={...sched2[k],subjectId:keepId}; });
     const ns2 = subjects.filter(s=>s.id!==removeId);
+    // Learn: map removed name → kept name (normalised key → canonical name)
+    const newMaps = { ...mappings,
+      subjects: { ...mappings.subjects, [nc(removeSubj?.name||'')]: keepSubj?.name||'' }
+    };
+    setMappings(newMaps);
     setSubjects(ns2); setSchedule(sched2);
-    saveAll(courses, teachers, ns2, sched2, lastReport);
-    setMergingSubject(null); showMsg('Materias unificadas.');
+    saveAll(courses, teachers, ns2, sched2, lastReport, newMaps);
+    setMergingSubject(null); showMsg('Materias unificadas y aprendidas.');
   };
   const mergeTeachers = (keepId, removeId) => {
     if (keepId===removeId) return;
+    const keepT   = teachers.find(t=>t.id===keepId);
+    const removeT = teachers.find(t=>t.id===removeId);
     const sched2 = {...schedule};
     Object.keys(sched2).forEach(k => { if (sched2[k].teacherId===removeId) sched2[k]={...sched2[k],teacherId:keepId}; });
     const nt = teachers.filter(t=>t.id!==removeId);
+    // Learn: map removed name → kept name
+    const newMaps = { ...mappings,
+      teachers: { ...mappings.teachers, [nc(removeT?.name||'')]: keepT?.name||'' }
+    };
+    setMappings(newMaps);
     setTeachers(nt); setSchedule(sched2);
-    saveAll(courses, nt, subjects, sched2, lastReport);
-    showMsg('Docentes unificados.');
+    saveAll(courses, nt, subjects, sched2, lastReport, newMaps);
+    showMsg('Docentes unificados y aprendidos.');
   };
   const addSubject = name => {
     const t = name.trim(); if (!t) return;
@@ -1103,10 +1171,9 @@ export default function App() {
               <tbody>
                 {classPeriods.map(p => (
                   <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="p-3 border-b border-r border-slate-100 bg-slate-50/70 text-center">
-                      <span className={`text-[11px] font-black block leading-none ${p.type==='pe'?'text-emerald-600':'text-indigo-600'}`}>{p.mod}°</span>
-                      <span className="text-[8px] text-slate-400 font-bold block mt-0.5">{p.start}</span>
-                      <span className="text-[8px] text-slate-400 font-bold block">{p.end}</span>
+                    <td className="p-3 border-b border-r border-slate-100 bg-slate-50/70 text-center align-middle">
+                      <div className={`text-[11px] font-black leading-none ${p.type==='pe'?'text-emerald-600':'text-indigo-600'}`}>{p.mod}°</div>
+                      <div className="text-[8px] text-slate-400 font-bold mt-1">{p.start}–{p.end}</div>
                     </td>
                     {DAYS.map((_, dI) => {
                       const cell = cellFn(dI, p);
@@ -1737,6 +1804,52 @@ export default function App() {
               )}
             </div>
 
+            {/* Learned mappings */}
+            {(Object.keys(mappings.teachers).length > 0 || Object.keys(mappings.subjects).length > 0) && (
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-black text-slate-800 text-base">Correcciones aprendidas</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Se aplican automáticamente en cada importación.</p>
+                  </div>
+                  <button
+                    onClick={() => { const m={teachers:{},subjects:{}}; setMappings(m); saveAll(courses,teachers,subjects,schedule,lastReport,m); showMsg('Correcciones eliminadas.'); }}
+                    className="text-xs font-bold text-red-500 border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors">
+                    Limpiar todo
+                  </button>
+                </div>
+
+                {[['teachers','Docentes'],['subjects','Materias']].map(([type, label]) => {
+                  const entries = Object.entries(mappings[type] || {});
+                  if (!entries.length) return null;
+                  return (
+                    <div key={type}>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wide mb-2">{label} ({entries.length})</p>
+                      <div className="bg-slate-50 rounded-xl overflow-hidden divide-y divide-slate-100">
+                        {entries.map(([from, to]) => (
+                          <div key={from} className="flex items-center gap-3 px-4 py-2.5">
+                            <span className="text-xs text-slate-500 font-mono flex-1 truncate line-through opacity-60">{from}</span>
+                            <ArrowRight size={11} className="text-slate-300 shrink-0"/>
+                            <span className="text-xs font-bold text-slate-800 flex-1 truncate">{to}</span>
+                            <button
+                              onClick={() => {
+                                const newMaps = { ...mappings, [type]: { ...mappings[type] } };
+                                delete newMaps[type][from];
+                                setMappings(newMaps);
+                                saveAll(courses, teachers, subjects, schedule, lastReport, newMaps);
+                              }}
+                              className="text-slate-300 hover:text-red-400 transition-colors shrink-0 ml-1">
+                              <X size={13}/>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             {/* Step by step guide */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
               <div>
@@ -1970,7 +2083,6 @@ export default function App() {
                   remove.forEach(r=>mergeModal.isTeachers?mergeTeachers(keep,r.id):mergeSubjects(keep,r.id));
                   setMergeModal(null);
                   setSelectedItems(new Set());
-                  showMsg(`Unificados en "${mergeModal.items.find(it=>it.id===keep)?.name}".`);
                 }}
                 className="flex-[2] bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">
                 <Merge size={14}/>Confirmar unificación
