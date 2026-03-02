@@ -640,23 +640,47 @@ export default function App() {
     } catch (_) { setCloudStatus('error'); }
   }, [fbReady, fbSave]);
 
-  // ── Parse + connect Firebase config ──────────────────────────────────────
+  // ── Parse + connect Firebase config (de Gemini) ──────────────────────────────────────
   const handleConnectFirebase = useCallback(async () => {
     setFbConfigErr('');
-    let parsed;
+    let parsed = null;
+
     try {
-      // Accept both plain JSON and the JS object snippet Firebase gives you
-      const cleaned = fbConfigText
-        .replace(/^[\s\S]*?({)/, '$1')   // strip leading text/comments
-        .replace(/([{,]\s*)(\w+)\s*:/g, '$1"$2":')  // quote unquoted keys
-        .replace(/,\s*}/g, '}')          // trailing commas
-        .trim();
-      parsed = JSON.parse(cleaned);
-      if (!parsed.apiKey || !parsed.projectId) throw new Error('Faltan campos obligatorios (apiKey, projectId)');
+      // Estrategia a prueba de novatos: Buscar las variables directamente en el texto
+      // sin importar si hay imports, comentarios o código extra alrededor.
+      const keysToFind = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId', 'measurementId'];
+      const extractedConfig = {};
+
+      keysToFind.forEach(key => {
+        // Busca el patrón exacto (ej. apiKey: "valor" o apiKey: 'valor')
+        const regex = new RegExp(`${key}\\s*:\\s*['"]([^'"]+)['"]`);
+        const match = fbConfigText.match(regex);
+        if (match && match[1]) {
+          extractedConfig[key] = match[1];
+        }
+      });
+
+      // Si encontró al menos las credenciales obligatorias, usamos lo extraído
+      if (extractedConfig.apiKey && extractedConfig.projectId) {
+        parsed = extractedConfig;
+      } else {
+        // Fallback: por si pegaron un JSON puro muy estricto
+        try {
+          parsed = JSON.parse(fbConfigText.trim());
+        } catch (jsonErr) {
+          throw new Error('No se detectaron credenciales válidas en el texto.');
+        }
+      }
+
+      if (!parsed || !parsed.apiKey || !parsed.projectId) {
+        throw new Error('Faltan campos obligatorios (apiKey, projectId).');
+      }
+
     } catch(e) {
-      setFbConfigErr('No se pudo leer la configuración. Revisá que hayas pegado el objeto completo. Detalle: ' + e.message);
+      setFbConfigErr('No se pudo leer la configuración. Asegurate de copiar el bloque "const firebaseConfig = { ... }" que te da Firebase.');
       return;
     }
+
     // Reset cached Firebase instance so it reconnects with new config
     window._fbApp = null; window._fbFirestore = null; window._fbOps = null;
     await saveFBConfig(parsed);
