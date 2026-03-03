@@ -900,7 +900,12 @@ export default function App() {
   const deleteSubject = id => {
     const ns2 = subjects.filter(s => s.id !== id);
     const sched2 = {...schedule};
-    Object.keys(sched2).forEach(k => { if (sched2[k].subjectId===id) delete sched2[k]; });
+    Object.keys(sched2).forEach(k => {
+      if (sched2[k].subjectId === id) {
+        if (sched2[k].teacherId) sched2[k] = { ...sched2[k], subjectId: '' };
+        else delete sched2[k];
+      }
+    });
     setSubjects(ns2); setSchedule(sched2);
     saveAll(courses, teachers, ns2, sched2, lastReport); showMsg('Materia eliminada.');
   };
@@ -1006,7 +1011,7 @@ window.print();window.onafterprint=()=>window.close();
   }, []);
 
   // ── Schedule Grid (shared report component) ───────────────────────────────
-  const ScheduleGrid = useCallback(({ title, cellFn, modCount }) => {
+  const ScheduleGrid = useCallback(({ title, cellFn, modCount, conflictFn }) => {
     reportTitleRef.current = title;
     const classPeriods = FIXED_PERIODS.filter(p => p.type==='class' || p.type==='pe');
     return (
@@ -1049,12 +1054,14 @@ window.print();window.onafterprint=()=>window.close();
                     </td>
                     {DAYS.map((_, dI) => {
                       const cell = cellFn(dI, p);
+                      const isConflict = conflictFn ? conflictFn(dI, p) : false;
                       return (
-                        <td key={dI} className="p-3 border-b border-r border-slate-100 align-top">
+                        <td key={dI} className={"p-3 border-b border-r align-top " + (isConflict ? "border-red-200 bg-red-50" : "border-slate-100")}>
                           {cell ? (
                             <div>
-                              <div className="text-[11px] font-bold text-slate-800 leading-snug">{cell.top}</div>
-                              {cell.bottom && <div className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{cell.bottom}</div>}
+                              <div className={"text-[11px] font-bold leading-snug " + (isConflict ? "text-red-700" : "text-slate-800")}>{cell.top}</div>
+                              {cell.bottom && <div className={"text-[9px] font-bold uppercase mt-0.5 " + (isConflict ? "text-red-400" : "text-slate-400")}>{cell.bottom}</div>}
+                              {isConflict && <div className="flex items-center gap-0.5 mt-1"><span className="text-[8px] text-red-500 font-black">⚠ Conflicto</span></div>}
                             </div>
                           ) : <span className="text-slate-200 font-bold text-sm">—</span>}
                         </td>
@@ -1102,7 +1109,7 @@ window.print();window.onafterprint=()=>window.close();
               <div className="text-xs text-slate-400 font-bold mt-0.5">{teacher.subject || 'Sin materias asignadas'}</div>
             </div>
           </div>
-          <ScheduleGrid title={`Horario docente: ${teacher.name}`} modCount={modCount} cellFn={(dI, p) => idx[`${dI}-${p.id}`] || null}/>
+          <ScheduleGrid title={`Horario docente: ${teacher.name}`} modCount={modCount} cellFn={(dI, p) => idx[`${dI}-${p.id}`] || null} conflictFn={(dI, p) => courses.some(c => conflictKeys.has(`${dI}-${p.id}-${c.id}`) && schedule[`${dI}-${p.id}-${c.id}`]?.teacherId === teacher.id)}/>
         </div>
       );
     }
@@ -1110,7 +1117,7 @@ window.print();window.onafterprint=()=>window.close();
       const course = courses.find(c => c.id === parseInt(reportSelection));
       if (!course) return null;
       return (
-        <ScheduleGrid title={`Horario curso: ${course.name}`} cellFn={(dI, p) => {
+        <ScheduleGrid title={`Horario curso: ${course.name}`} conflictFn={(dI, p) => conflictKeys.has(`${dI}-${p.id}-${course.id}`)} cellFn={(dI, p) => {
           const cell    = schedule[`${dI}-${p.id}-${course.id}`];
           if (!cell) return null;
           const subj    = subjects.find(s => s.id === cell.subjectId);
@@ -1444,42 +1451,41 @@ window.print();window.onafterprint=()=>window.close();
                     const modCount = isTeachers ? parseInt(item.badge) : null;
                     return(
                       <div key={item.id}
-                        className={`flex items-center gap-3 px-4 py-3 border-b border-slate-100 last:border-0 transition-colors
+                        className={`flex items-center gap-2 px-3 py-2.5 border-b border-slate-100 last:border-0 transition-colors
                           ${isSel?'bg-indigo-50/60':item.isDupe?'bg-amber-50/30':'hover:bg-slate-50/60'}`}>
 
                         <input type="checkbox" checked={isSel} onChange={()=>toggleItem(item.id)}
                           className="w-4 h-4 rounded accent-indigo-600 cursor-pointer shrink-0"/>
 
                         {/* avatar with color */}
-                        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border text-sm font-black text-white"
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border text-sm font-black text-white"
                           style={item.colorHex ? teacherAvatarStyle(item.colorHex) : {backgroundColor:'#e2e8f0', borderColor:'#cbd5e1', color:'#64748b'}}>
                           {item.avatar}
                         </div>
 
-                        {/* name + subtitle — takes full remaining width */}
-                        <div className="flex-1 min-w-0">
+                        {/* name + subtitle + badge — all together, no flex-1 stretching */}
+                        <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {item.isDupe&&<AlertTriangle size={11} className="text-amber-400 shrink-0"/>}
                             <span className="font-bold text-slate-800 text-sm truncate">{item.name}</span>
-                            {/* badge inline */}
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${parseInt(item.badge)===0||item.badge.startsWith('0')?'bg-slate-100 text-slate-400':'bg-indigo-50 text-indigo-600'}`}>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0 ${parseInt(item.badge)===0||item.badge.startsWith('0')?'bg-slate-100 text-slate-400':'bg-indigo-50 text-indigo-600'}`}>
                               {item.badge}
                             </span>
                           </div>
                           {item.subtitle&&<p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">{item.subtitle}</p>}
                         </div>
 
-                        {/* actions — compact, right-aligned */}
-                        <div className="flex gap-1 shrink-0">
+                        {/* actions — always right next to content */}
+                        <div className="flex gap-0.5 shrink-0 opacity-60 hover:opacity-100 transition-opacity">
                           <button
                             onClick={()=>isTeachers?setEditingTeacher({...teachers.find(t=>t.id===item.id)}):setEditingSubject({...subjects.find(s=>s.id===item.id)})}
                             className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors" title="Editar">
-                            <Edit2 size={15}/>
+                            <Edit2 size={14}/>
                           </button>
                           <button
                             onClick={()=>{if(window.confirm(`¿Eliminar "${item.name}"?`))isTeachers?deleteTeacher(item.id):deleteSubject(item.id);}}
                             className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500 transition-colors" title="Eliminar">
-                            <Trash2 size={15}/>
+                            <Trash2 size={14}/>
                           </button>
                         </div>
                       </div>
@@ -1725,7 +1731,7 @@ window.print();window.onafterprint=()=>window.close();
       {editingCell&&(
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center p-4"
           onClick={e=>e.target===e.currentTarget&&setEditingCell(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4" onClick={e=>e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="font-black text-slate-800">Editar Módulo</h3>
               <button onClick={()=>setEditingCell(null)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400"><X size={16}/></button>
