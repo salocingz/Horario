@@ -33,7 +33,13 @@ const COLORS = [
   'bg-orange-300 text-orange-900 border-orange-500',
   'bg-blue-300 text-blue-900 border-blue-500',
 ];
-
+const HEX_COLORS = [
+  '#6366f1','#10b981','#f59e0b','#ef4444','#3b82f6',
+  '#8b5cf6','#06b6d4','#f97316','#14b8a6','#ec4899',
+  '#84cc16','#a855f7','#0ea5e9','#d946ef','#22c55e',
+  '#fb923c','#e11d48','#7c3aed','#0891b2','#65a30d',
+  '#dc2626','#2563eb',
+];
 const FIXED_PERIODS = [
   { id:1,  start:'07:20', end:'08:20', type:'class', mod:1 },
   { id:2,  start:'08:20', end:'09:20', type:'class', mod:2 },
@@ -217,7 +223,7 @@ function SubjectDropdown({ value, onChange, subjects }) {
 }
 
 // ─── Alerts Panel (persistent) ────────────────────────────────────────────────
-function AlertsPanel({ report, onClose }) {
+function AlertsPanel({ report, conflictList = [], onGoToConflict }) {
   if (!report) return (
     <div className="flex flex-col items-center justify-center py-20 text-slate-300">
       <Bell size={40} className="mb-3"/>
@@ -251,6 +257,35 @@ function AlertsPanel({ report, onClose }) {
         </div>
       )}
 
+{conflictList.length > 0 && (
+  <div className="bg-white border border-red-200 rounded-2xl overflow-hidden shadow-sm">
+    <div className="p-4 border-b border-red-100 flex items-center gap-2 bg-red-50">
+      <AlertTriangle size={15} className="text-red-500"/>
+      <span className="text-sm font-black text-red-700">Conflictos de horario ({conflictList.length})</span>
+    </div>
+    <div className="divide-y divide-red-50">
+      {conflictList.map((c, i) => (
+        <div key={i} className="px-4 py-3 flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-black text-slate-800">{c.teacher?.name ?? 'Docente desconocido'}</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {c.day} · {c.period.mod}° módulo ({c.period.start}–{c.period.end})
+            </p>
+            <p className="text-xs text-red-600 font-medium mt-1">
+              Asignado simultáneamente a: {c.entries.map(e => e.course.name).join(', ')}
+            </p>
+          </div>
+          <button
+            onClick={() => onGoToConflict(c)}
+            className="shrink-0 flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors mt-0.5">
+            <Eye size={11}/>Ver en grilla
+          </button>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
+      
       {report.warnings.length > 0 && (
         <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="p-4 border-b border-slate-100 flex items-center gap-2 bg-red-50">
@@ -536,7 +571,8 @@ function ConflictPanel({ conflicts, onNavigate, onEdit }) {
           {conflicts.map((c, i) => (
             <div key={i} className="px-4 py-3 flex items-start gap-3">
               {/* teacher avatar */}
-              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border text-xs font-black mt-0.5 ${c.teacher?.color || 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border text-xs font-black mt-0.5 text-white"
+  style={{backgroundColor: c.teacher?.colorHex || '#94a3b8', borderColor: c.teacher?.colorHex || '#94a3b8'}}>
                 {c.teacher?.name?.charAt(0)?.toUpperCase() ?? '?'}
               </div>
 
@@ -882,8 +918,8 @@ export default function App() {
       const key = nc(name);
       if (teacherMap.has(key)) return teacherMap.get(key);
       // Asigna el color en orden secuencial usando el tamaño de la lista de docentes
-      const color = COLORS[teacherMap.size % COLORS.length];
-      const t = { id:`t-${uid()}`, name, color, subject:'' };
+      const colorHex = HEX_COLORS[teacherMap.size % HEX_COLORS.length];
+const t = { id:`t-${uid()}`, name, color: '', colorHex, subject:'' };
       teacherMap.set(key, t);
       return t;
     };
@@ -1501,7 +1537,8 @@ export default function App() {
                                   {cell?(
                                     <div className={`rounded-lg p-2 border h-full transition-all
                                       ${dimmed?'opacity-20':''}
-                                      ${hasConflict?'border-red-300 bg-red-50 text-red-700':teacher?.color||'bg-slate-50 text-slate-700 border-slate-200'}`}>
+                                      ${hasConflict?'border-red-300 bg-red-50 text-red-700':'border-slate-200'}`}
+style={!hasConflict && teacher?.colorHex ? {backgroundColor: teacher.colorHex + '22', borderColor: teacher.colorHex, color: teacher.colorHex} : {}}>
                                       <div className="text-[10px] font-bold leading-snug truncate">{subject?.name??<span className="italic text-slate-400">Sin materia</span>}</div>
                                       <div className="text-[8px] opacity-70 font-bold uppercase truncate mt-0.5">{teacher?.name??<span className="text-slate-300">Sin docente</span>}</div>
                                       {hasConflict&&<div className="flex items-center gap-0.5 mt-1"><AlertTriangle size={8} className="text-red-500 shrink-0"/><span className="text-[8px] text-red-500 font-bold">Conflicto</span></div>}
@@ -1610,7 +1647,7 @@ export default function App() {
                 </h2>
                 <button
                   onClick={()=>isTeachers
-                    ?setEditingTeacher({id:`t-${uid()}`,name:'',subject:'',color:COLORS[teachers.length%COLORS.length]})
+                    ?setEditingTeacher({id:`t-${uid()}`,name:'',subject:'',color:'',colorHex:HEX_COLORS[teachers.length%HEX_COLORS.length]})
                     :setEditingSubject({id:'new',name:''})}
                   className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors flex items-center gap-2">
                   <Plus size={13}/>{isTeachers?'Agregar Docente':'Nueva Materia'}
@@ -1684,7 +1721,8 @@ export default function App() {
                           className="w-4 h-4 rounded accent-indigo-600 cursor-pointer shrink-0"/>
 
                         {/* avatar */}
-                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border text-xs font-black ${item.color}`}>
+                        <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border text-xs font-black text-white"
+  style={{backgroundColor: item.colorHex || '#6366f1', borderColor: item.colorHex || '#6366f1'}}>
                           {item.avatar}
                         </div>
 
@@ -1815,7 +1853,15 @@ export default function App() {
                 {lastReport&&<p className="text-xs text-slate-400 font-medium mt-0.5">Última importación: {lastReport.date}</p>}
               </div>
             </div>
-            <AlertsPanel report={lastReport}/>
+            <AlertsPanel
+  report={lastReport}
+  conflictList={conflictList}
+  onGoToConflict={(c) => {
+    setSearchTerm(c.teacher?.name || '');
+    setCurrentDay(c.dayIdx);
+    setActiveTab('grid');
+  }}
+/>
           </div>
         )}
 
@@ -2036,16 +2082,26 @@ export default function App() {
                 placeholder="Apellido, Nombre" className="w-full text-sm border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 ring-indigo-100"/>
             </div>
             <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase block mb-2">Color</label>
-              <div className="flex flex-wrap gap-2">
-                {COLORS.map((color,idx)=>(
-                  <button key={idx} onClick={()=>setEditingTeacher(p=>({...p,color}))}
-                    className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center transition-transform ${color} ${editingTeacher.color===color?'scale-110 ring-2 ring-slate-700 ring-offset-1 shadow-md':'hover:scale-105'}`}>
-                    {editingTeacher.color===color&&<Check size={12}/>}
-                  </button>
-                ))}
-              </div>
-            </div>
+  <label className="text-[10px] font-black text-slate-500 uppercase block mb-2">Color</label>
+  <div className="flex items-center gap-3">
+    <input
+      type="color"
+      value={editingTeacher.colorHex || '#6366f1'}
+      onChange={e => setEditingTeacher(p => ({
+        ...p,
+        colorHex: e.target.value,
+        color: `bg-[${e.target.value}] text-white border-[${e.target.value}]`
+      }))}
+      className="w-10 h-10 rounded-lg border border-slate-200 cursor-pointer p-0.5"
+    />
+    <div
+      className="w-10 h-10 rounded-lg border-2 border-slate-300 flex items-center justify-center text-sm font-black text-white shadow-sm"
+      style={{backgroundColor: editingTeacher.colorHex || '#6366f1'}}>
+      {editingTeacher.name?.charAt(0)?.toUpperCase() || '?'}
+    </div>
+    <span className="text-xs text-slate-400 font-mono">{editingTeacher.colorHex || '#6366f1'}</span>
+  </div>
+</div>
             <button onClick={()=>{if(editingTeacher.name.trim())saveTeacher(editingTeacher);}} disabled={!editingTeacher.name.trim()}
               className="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700 disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
               <Check size={13}/>Guardar Docente
