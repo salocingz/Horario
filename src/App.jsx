@@ -868,11 +868,12 @@ export default function App() {
     setEditingCell({ key, teacherId: cell.teacherId||'', subjectId: cell.subjectId||'' });
   };
   const saveCell = (key, data) => {
-    const ns2 = { ...schedule };
+    const { courses: c, teachers: t, subjects: s, schedule: cur, lastReport: lr } = latestDataRef.current;
+    const ns2 = { ...cur };
     if (!data.teacherId && !data.subjectId) delete ns2[key];
     else ns2[key] = { teacherId: data.teacherId, subjectId: data.subjectId };
     pushHistory(ns2); setSchedule(ns2);
-    saveAll(courses, teachers, subjects, ns2, lastReport);
+    saveAll(c, t, s, ns2, lr);
     setEditingCell(null);
   };
 
@@ -1011,7 +1012,7 @@ window.print();window.onafterprint=()=>window.close();
   }, []);
 
   // ── Schedule Grid (shared report component) ───────────────────────────────
-  const ScheduleGrid = useCallback(({ title, cellFn, modCount, conflictFn }) => {
+  const ScheduleGrid = useCallback(({ title, cellFn, modCount, conflictFn, conflictDetailFn }) => {
     reportTitleRef.current = title;
     const classPeriods = FIXED_PERIODS.filter(p => p.type==='class' || p.type==='pe');
     return (
@@ -1055,13 +1056,21 @@ window.print();window.onafterprint=()=>window.close();
                     {DAYS.map((_, dI) => {
                       const cell = cellFn(dI, p);
                       const isConflict = conflictFn ? conflictFn(dI, p) : false;
+                      const conflictDetail = (isConflict && conflictDetailFn) ? conflictDetailFn(dI, p) : null;
                       return (
-                        <td key={dI} className={"p-3 border-b border-r align-top " + (isConflict ? "border-red-200 bg-red-50" : "border-slate-100")}>
+                        <td key={dI} className={"p-2 border-b border-r align-top " + (isConflict ? "border-red-300 bg-red-50" : "border-slate-100")}>
                           {cell ? (
                             <div>
                               <div className={"text-[11px] font-bold leading-snug " + (isConflict ? "text-red-700" : "text-slate-800")}>{cell.top}</div>
                               {cell.bottom && <div className={"text-[9px] font-bold uppercase mt-0.5 " + (isConflict ? "text-red-400" : "text-slate-400")}>{cell.bottom}</div>}
-                              {isConflict && <div className="flex items-center gap-0.5 mt-1"><span className="text-[8px] text-red-500 font-black">⚠ Conflicto</span></div>}
+                              {isConflict && (
+                                <div className="mt-1 bg-red-100 border border-red-200 rounded px-1.5 py-1">
+                                  <div className="text-[8px] text-red-600 font-black uppercase tracking-wide mb-0.5">⚠ Conflicto</div>
+                                  {conflictDetail && conflictDetail.map((d,i) => (
+                                    <div key={i} className="text-[8px] text-red-500 font-bold leading-tight">{d}</div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           ) : <span className="text-slate-200 font-bold text-sm">—</span>}
                         </td>
@@ -1109,7 +1118,13 @@ window.print();window.onafterprint=()=>window.close();
               <div className="text-xs text-slate-400 font-bold mt-0.5">{teacher.subject || 'Sin materias asignadas'}</div>
             </div>
           </div>
-          <ScheduleGrid title={`Horario docente: ${teacher.name}`} modCount={modCount} cellFn={(dI, p) => idx[`${dI}-${p.id}`] || null} conflictFn={(dI, p) => courses.some(c => conflictKeys.has(`${dI}-${p.id}-${c.id}`) && schedule[`${dI}-${p.id}-${c.id}`]?.teacherId === teacher.id)}/>
+          <ScheduleGrid title={`Horario docente: ${teacher.name}`} modCount={modCount}
+            cellFn={(dI, p) => idx[`${dI}-${p.id}`] || null}
+            conflictFn={(dI, p) => courses.some(c => conflictKeys.has(`${dI}-${p.id}-${c.id}`) && schedule[`${dI}-${p.id}-${c.id}`]?.teacherId === teacher.id)}
+            conflictDetailFn={(dI, p) => {
+              const conflicting = courses.filter(c => conflictKeys.has(`${dI}-${p.id}-${c.id}`) && schedule[`${dI}-${p.id}-${c.id}`]?.teacherId === teacher.id);
+              return conflicting.map(c => { const subj = subjects.find(s => s.id === schedule[`${dI}-${p.id}-${c.id}`]?.subjectId); return `${c.name}: ${subj?.name || '—'}`; });
+            }}/>
         </div>
       );
     }
@@ -1117,7 +1132,16 @@ window.print();window.onafterprint=()=>window.close();
       const course = courses.find(c => c.id === parseInt(reportSelection));
       if (!course) return null;
       return (
-        <ScheduleGrid title={`Horario curso: ${course.name}`} conflictFn={(dI, p) => conflictKeys.has(`${dI}-${p.id}-${course.id}`)} cellFn={(dI, p) => {
+        <ScheduleGrid title={`Horario curso: ${course.name}`}
+          conflictFn={(dI, p) => conflictKeys.has(`${dI}-${p.id}-${course.id}`)}
+          conflictDetailFn={(dI, p) => {
+            const cell = schedule[`${dI}-${p.id}-${course.id}`];
+            if (!cell?.teacherId) return [];
+            const t = teachers.find(t => t.id === cell.teacherId);
+            const otherCourses = courses.filter(c => c.id !== course.id && conflictKeys.has(`${dI}-${p.id}-${c.id}`) && schedule[`${dI}-${p.id}-${c.id}`]?.teacherId === cell.teacherId);
+            return [`${t?.name || '—'} también en: ${otherCourses.map(c=>c.name).join(', ')}`];
+          }}
+          cellFn={(dI, p) => {
           const cell    = schedule[`${dI}-${p.id}-${course.id}`];
           if (!cell) return null;
           const subj    = subjects.find(s => s.id === cell.subjectId);
@@ -1463,30 +1487,27 @@ window.print();window.onafterprint=()=>window.close();
                           {item.avatar}
                         </div>
 
-                        {/* name + subtitle + badge — all together, no flex-1 stretching */}
+                        {/* name + subtitle + badge + actions — todo junto, sin espacio */}
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 flex-wrap">
+                          <div className="flex items-center gap-1 flex-wrap">
                             {item.isDupe&&<AlertTriangle size={11} className="text-amber-400 shrink-0"/>}
                             <span className="font-bold text-slate-800 text-sm truncate">{item.name}</span>
                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0 ${parseInt(item.badge)===0||item.badge.startsWith('0')?'bg-slate-100 text-slate-400':'bg-indigo-50 text-indigo-600'}`}>
                               {item.badge}
                             </span>
+                            {/* actions inline, right after the name */}
+                            <button
+                              onClick={()=>isTeachers?setEditingTeacher({...teachers.find(t=>t.id===item.id)}):setEditingSubject({...subjects.find(s=>s.id===item.id)})}
+                              className="p-1 hover:bg-slate-100 rounded-lg text-slate-300 hover:text-indigo-500 transition-colors shrink-0" title="Editar">
+                              <Edit2 size={13}/>
+                            </button>
+                            <button
+                              onClick={()=>{if(window.confirm(`¿Eliminar "${item.name}"?`))isTeachers?deleteTeacher(item.id):deleteSubject(item.id);}}
+                              className="p-1 hover:bg-red-50 rounded-lg text-slate-300 hover:text-red-500 transition-colors shrink-0" title="Eliminar">
+                              <Trash2 size={13}/>
+                            </button>
                           </div>
                           {item.subtitle&&<p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">{item.subtitle}</p>}
-                        </div>
-
-                        {/* actions — always right next to content */}
-                        <div className="flex gap-0.5 shrink-0 opacity-60 hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={()=>isTeachers?setEditingTeacher({...teachers.find(t=>t.id===item.id)}):setEditingSubject({...subjects.find(s=>s.id===item.id)})}
-                            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors" title="Editar">
-                            <Edit2 size={14}/>
-                          </button>
-                          <button
-                            onClick={()=>{if(window.confirm(`¿Eliminar "${item.name}"?`))isTeachers?deleteTeacher(item.id):deleteSubject(item.id);}}
-                            className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500 transition-colors" title="Eliminar">
-                            <Trash2 size={14}/>
-                          </button>
                         </div>
                       </div>
                     );
