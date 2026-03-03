@@ -10,29 +10,6 @@ import {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const DAYS = ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES'];
-const COLORS = [
-  'bg-blue-200 text-blue-800 border-blue-400',
-  'bg-emerald-200 text-emerald-800 border-emerald-400',
-  'bg-violet-200 text-violet-800 border-violet-400',
-  'bg-amber-200 text-amber-800 border-amber-400',
-  'bg-rose-200 text-rose-800 border-rose-400',
-  'bg-cyan-200 text-cyan-800 border-cyan-400',
-  'bg-indigo-200 text-indigo-800 border-indigo-400',
-  'bg-orange-200 text-orange-800 border-orange-400',
-  'bg-teal-200 text-teal-800 border-teal-400',
-  'bg-pink-200 text-pink-800 border-pink-400',
-  'bg-lime-200 text-lime-800 border-lime-400',
-  'bg-fuchsia-200 text-fuchsia-800 border-fuchsia-400',
-  'bg-purple-200 text-purple-800 border-purple-400',
-  'bg-yellow-200 text-yellow-800 border-yellow-400',
-  'bg-sky-200 text-sky-800 border-sky-400',
-  'bg-slate-200 text-slate-800 border-slate-400',
-  'bg-emerald-300 text-emerald-900 border-emerald-500',
-  'bg-rose-300 text-rose-900 border-rose-500',
-  'bg-indigo-300 text-indigo-900 border-indigo-500',
-  'bg-orange-300 text-orange-900 border-orange-500',
-  'bg-blue-300 text-blue-900 border-blue-500',
-];
 const HEX_COLORS = [
   '#6366f1','#10b981','#f59e0b','#ef4444','#3b82f6',
   '#8b5cf6','#06b6d4','#f97316','#14b8a6','#ec4899',
@@ -62,103 +39,106 @@ const ns = s => s ? s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCas
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
 const cleanCell = s => s ? s.replace(/[()'"]/g,'').replace(/[\r\n]+/g,' ').replace(/\s+/g,' ').trim() : '';
 
+// Helper: get inline style from teacher (supports both legacy class-based and new hex colors)
+const teacherStyle = (colorHex) => {
+  if (!colorHex) return {};
+  return { backgroundColor: colorHex + '22', borderColor: colorHex, color: colorHex };
+};
+const teacherAvatarStyle = (colorHex) => {
+  if (!colorHex) return {};
+  return { backgroundColor: colorHex, borderColor: colorHex, color: '#fff' };
+};
+
+
 // ─── CSV PARSER ──────────────────────────────────────────────────────────────
-// Ported from working reference implementation.
-// Key insight: always treat rows[i+1] as the teacher row after a module row,
-// and always .slice(1) it — so the first column (empty, time range, etc.)
-// is unconditionally skipped. No classification heuristics needed.
-//
-// Returns { detectedCourses, parsedPairs, warnings }
 function parseCSV(csvText) {
-  // RFC-aware split: handles commas inside quoted fields
   const splitCSV = (line) =>
     line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/)
         .map(c => c.trim().replace(/^"|"$/g, ''));
-
   const rows = csvText
     .split(/\r?\n(?=(?:(?:[^"]*"){2})*[^"]*$)/)
     .filter(r => r.trim() !== '');
-
   const warnings = [];
   const parsedPairs = [];
   let detectedCourses = [];
   let activeDayIdx = -1;
-
   for (let i = 0; i < rows.length; i++) {
     const cells = splitCSV(rows[i]);
     if (!cells.length) continue;
-
-    // ── Day header ────────────────────────────────────────────────────────
     const firstNorm = cells[0].toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const dayIdx = DAYS_NORM.indexOf(firstNorm);
     if (dayIdx !== -1) {
       activeDayIdx = dayIdx;
-      const possible = cells.slice(1)
-        .map(c => cleanCell(c))
-        .filter(c => c.length > 0 && c.length < 30);
+      const possible = cells.slice(1).map(c => cleanCell(c)).filter(c => c.length > 0 && c.length < 30);
       if (possible.length > 0) detectedCourses = possible.map((name, idx) => ({ id: idx + 1, name }));
       continue;
     }
-
     if (activeDayIdx === -1) continue;
-
-    // ── Module row ────────────────────────────────────────────────────────
     const modMatch = cells[0].match(/^(\d+)$/);
     if (!modMatch) continue;
-
     const modNum = parseInt(modMatch[1]);
     const period = FIXED_PERIODS.find(p => p.mod === modNum);
-    if (!period) {
-      warnings.push(`Módulo ${modNum} no existe en la configuración de períodos — ignorado`);
-      continue;
-    }
-
-    const subjectsRow = cells.slice(1);   // subject per course, 0-indexed
-
-    // ── Teacher row: ALWAYS rows[i+1], ALWAYS .slice(1) ──────────────────
-    // This is the key fix: don't classify the next row — just take it.
-    // .slice(1) unconditionally drops the first column (empty, time label,
-    // anything) so alignment with subjectsRow is always correct.
+    if (!period) { warnings.push(`Módulo ${modNum} no existe en la configuración de períodos — ignorado`); continue; }
+    const subjectsRow = cells.slice(1);
     const nextRowIdx = i + 1;
     let teachersRow = [];
     if (nextRowIdx < rows.length) {
       const nextCells = splitCSV(rows[nextRowIdx]);
       teachersRow = nextCells.slice(1);
-      i = nextRowIdx; // always consume the next row
+      i = nextRowIdx;
     } else {
       warnings.push(`${DAYS[activeDayIdx]} Mód.${modNum}: fila de docentes ausente (fin de archivo)`);
     }
-
-    // ── Emit one pair per course ──────────────────────────────────────────
     detectedCourses.forEach((course, ci) => {
       const rawSubject = cleanCell(subjectsRow[ci] ?? '');
       const rawTeacher = cleanCell(teachersRow[ci] ?? '');
-      parsedPairs.push({
-        dayIdx:     activeDayIdx,
-        dayName:    DAYS[activeDayIdx],
-        modNum,
-        courseIdx:  ci,
-        courseName: course.name,
-        rawSubject,
-        rawTeacher,
-      });
+      parsedPairs.push({ dayIdx: activeDayIdx, dayName: DAYS[activeDayIdx], modNum, courseIdx: ci, courseName: course.name, rawSubject, rawTeacher });
     });
   }
-
   return { detectedCourses, parsedPairs, warnings };
 }
 
 // ─── Micro-components ─────────────────────────────────────────────────────────
-function CloudDot({ status, firebase }) {
-  const dot = { saved:'bg-emerald-500', syncing:'bg-amber-400 animate-pulse', error:'bg-red-400', loading:'bg-slate-300 animate-pulse' };
-  const lbl = { saved: firebase ? 'Firebase' : 'Local', syncing:'Guardando…', error:'Error', loading:'Conectando…' };
+function CloudDot({ status, fbStatus }) {
+  // status = cloudStatus (save operations: saved/syncing/error/loading)
+  // fbStatus = Firebase connection status (idle/connecting/connected/error)
+  const isConnected = fbStatus === 'connected';
+  const isConnecting = fbStatus === 'connecting';
+  const isFbError = fbStatus === 'error';
+
+  if (isFbError) {
+    return (
+      <div className="flex items-center gap-1 bg-red-100 border border-red-300 rounded-md px-1.5 py-0.5">
+        <WifiOff size={9} className="text-red-500 shrink-0"/>
+        <span className="text-[9px] font-black text-red-600 uppercase tracking-wider">Sin conexión</span>
+      </div>
+    );
+  }
+  if (isConnecting) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"/>
+        <span className="text-[9px] font-bold text-amber-500 uppercase tracking-wider">Conectando…</span>
+      </div>
+    );
+  }
+  if (isConnected) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <Database size={10} className={status==='syncing'?'text-amber-400 animate-pulse':status==='error'?'text-red-400':'text-emerald-500'}/>
+        <span className={`text-[9px] font-bold uppercase tracking-wider ${status==='error'?'text-red-500':status==='syncing'?'text-amber-500':'text-slate-400'}`}>
+          {status==='syncing'?'Guardando…':status==='error'?'Error al guardar':'Firebase'}
+        </span>
+      </div>
+    );
+  }
+  // Local storage
   return (
     <div className="flex items-center gap-1.5">
-      {firebase
-        ? <Database size={10} className={status==='saved'?'text-emerald-500':status==='error'?'text-red-400':'text-amber-400'}/>
-        : <div className={`w-1.5 h-1.5 rounded-full ${dot[status]??dot.loading}`}/>
-      }
-      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{lbl[status]??''}</span>
+      <div className={`w-1.5 h-1.5 rounded-full ${status==='syncing'?'bg-amber-400 animate-pulse':status==='error'?'bg-red-400':'bg-emerald-500'}`}/>
+      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+        {status==='syncing'?'Guardando…':status==='error'?'Error':'Local'}
+      </span>
     </div>
   );
 }
@@ -168,24 +148,20 @@ function Badge({ children, color='slate' }) {
   return <span className={`px-2 py-0.5 rounded-lg text-sm font-bold ${map[color]}`}>{children}</span>;
 }
 
-// ─── Searchable Subject Dropdown ──────────────────────────────────────────────
 function SubjectDropdown({ value, onChange, subjects }) {
   const [open, setOpen]   = useState(false);
   const [query, setQuery] = useState('');
   const ref = useRef(null);
   const selected = subjects.find(s => s.id === value);
-
   useEffect(() => {
     const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, []);
-
   const filtered = useMemo(() =>
     query.trim() ? subjects.filter(s => ns(s.name).includes(ns(query))) : subjects,
     [subjects, query]
   );
-
   return (
     <div ref={ref} className="relative">
       <button type="button" onClick={() => { setOpen(o => !o); setQuery(''); }}
@@ -222,122 +198,123 @@ function SubjectDropdown({ value, onChange, subjects }) {
   );
 }
 
-// ─── Alerts Panel (persistent) ────────────────────────────────────────────────
+
+// ─── Alerts Panel ─────────────────────────────────────────────────────────────
 function AlertsPanel({ report, conflictList = [], onGoToConflict }) {
-  if (!report) return (
+  if (!report && conflictList.length === 0) return (
     <div className="flex flex-col items-center justify-center py-20 text-slate-300">
       <Bell size={40} className="mb-3"/>
       <p className="text-slate-400 font-bold text-sm">Sin reportes de importación aún.</p>
     </div>
   );
-
-  const hasIssues = report.warnings.length > 0 || report.deduped.length > 0 || report.skipped.length > 0;
-
+  const hasIssues = report && (report.warnings.length > 0 || report.deduped.length > 0 || report.skipped.length > 0);
   return (
     <div className="space-y-4 max-w-2xl mx-auto">
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          { label:'Cursos',    value: report.courses,   color:'indigo' },
-          { label:'Docentes',  value: report.teachers,  color:'indigo' },
-          { label:'Materias',  value: report.subjects,  color:'indigo' },
-          { label:'Módulos',   value: report.imported,  color:'emerald'},
-        ].map(s => (
-          <div key={s.label} className={`rounded-2xl p-4 text-center border ${s.color==='emerald'?'bg-emerald-50 border-emerald-100':'bg-indigo-50 border-indigo-100'}`}>
-            <div className={`text-2xl font-black ${s.color==='emerald'?'text-emerald-600':'text-indigo-600'}`}>{s.value}</div>
-            <div className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">{s.label}</div>
-          </div>
-        ))}
-      </div>
-
-      {!hasIssues && (
-        <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-5 flex items-center gap-3">
-          <CheckCircle2 size={20} className="text-emerald-500 shrink-0"/>
-          <p className="text-sm font-bold text-emerald-700">Importación perfecta — no se detectaron inconsistencias.</p>
-        </div>
-      )}
-
-{conflictList.length > 0 && (
-  <div className="bg-white border border-red-200 rounded-2xl overflow-hidden shadow-sm">
-    <div className="p-4 border-b border-red-100 flex items-center gap-2 bg-red-50">
-      <AlertTriangle size={15} className="text-red-500"/>
-      <span className="text-sm font-black text-red-700">Conflictos de horario ({conflictList.length})</span>
-    </div>
-    <div className="divide-y divide-red-50">
-      {conflictList.map((c, i) => (
-        <div key={i} className="px-4 py-3 flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-black text-slate-800">{c.teacher?.name ?? 'Docente desconocido'}</p>
-            <p className="text-xs text-slate-500 mt-0.5">
-              {c.day} · {c.period.mod}° módulo ({c.period.start}–{c.period.end})
-            </p>
-            <p className="text-xs text-red-600 font-medium mt-1">
-              Asignado simultáneamente a: {c.entries.map(e => e.course.name).join(', ')}
-            </p>
-          </div>
-          <button
-            onClick={() => onGoToConflict(c)}
-            className="shrink-0 flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors mt-0.5">
-            <Eye size={11}/>Ver en grilla
-          </button>
-        </div>
-      ))}
-    </div>
-  </div>
-)}
-      
-      {report.warnings.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-          <div className="p-4 border-b border-slate-100 flex items-center gap-2 bg-red-50">
+      {/* Conflict alerts — always shown at top */}
+      {conflictList.length > 0 && (
+        <div className="bg-white border border-red-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="p-4 border-b border-red-100 flex items-center gap-2 bg-red-50">
             <AlertTriangle size={15} className="text-red-500"/>
-            <span className="text-sm font-black text-red-700">Problemas de estructura ({report.warnings.length})</span>
+            <span className="text-sm font-black text-red-700">Conflictos de horario ({conflictList.length})</span>
           </div>
-          <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
-            {report.warnings.map((w,i) => (
-              <div key={i} className="px-4 py-2.5 text-xs text-slate-600 flex items-start gap-2">
-                <span className="text-red-300 mt-0.5 shrink-0">·</span>{w}
+          <div className="divide-y divide-red-50">
+            {conflictList.map((c, i) => (
+              <div key={i} className="px-4 py-3 flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-black text-slate-800">{c.teacher?.name ?? 'Docente desconocido'}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {c.day} · {c.period.mod}° módulo ({c.period.start}–{c.period.end})
+                  </p>
+                  <p className="text-xs text-red-600 font-medium mt-1">
+                    Asignado simultáneamente a: {c.entries.map(e => e.course.name).join(', ')}
+                  </p>
+                </div>
+                <button
+                  onClick={() => onGoToConflict(c)}
+                  className="shrink-0 flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors mt-0.5">
+                  <Eye size={11}/>Ver en grilla
+                </button>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {report.deduped.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-          <div className="p-4 border-b border-slate-100 flex items-center gap-2 bg-amber-50">
-            <Merge size={15} className="text-amber-500"/>
-            <span className="text-sm font-black text-amber-700">Materias unificadas por tildes ({report.deduped.length})</span>
-          </div>
-          <div className="divide-y divide-slate-100 max-h-48 overflow-y-auto">
-            {report.deduped.map((d,i) => (
-              <div key={i} className="px-4 py-2.5 flex items-center gap-2 text-xs">
-                <span className="text-slate-400 line-through">{d.from}</span>
-                <ArrowRight size={10} className="text-slate-300 shrink-0"/>
-                <span className="font-bold text-slate-700">{d.to}</span>
+      {report && (
+        <>
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label:'Cursos',    value: report.courses,   color:'indigo' },
+              { label:'Docentes',  value: report.teachers,  color:'indigo' },
+              { label:'Materias',  value: report.subjects,  color:'indigo' },
+              { label:'Módulos',   value: report.imported,  color:'emerald'},
+            ].map(s => (
+              <div key={s.label} className={`rounded-2xl p-4 text-center border ${s.color==='emerald'?'bg-emerald-50 border-emerald-100':'bg-indigo-50 border-indigo-100'}`}>
+                <div className={`text-2xl font-black ${s.color==='emerald'?'text-emerald-600':'text-indigo-600'}`}>{s.value}</div>
+                <div className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">{s.label}</div>
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {report.skipped.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-          <div className="p-4 border-b border-slate-100 flex items-center gap-2">
-            <Info size={15} className="text-slate-400"/>
-            <span className="text-sm font-black text-slate-600">Celdas omitidas ({report.skipped.length})</span>
-          </div>
-          <div className="divide-y divide-slate-100 max-h-48 overflow-y-auto">
-            {report.skipped.map((s,i) => (
-              <div key={i} className="px-4 py-2.5 text-xs text-slate-500 flex items-start gap-2">
-                <span className="text-slate-300 mt-0.5 shrink-0">·</span>{s}
+          {!hasIssues && (
+            <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-5 flex items-center gap-3">
+              <CheckCircle2 size={20} className="text-emerald-500 shrink-0"/>
+              <p className="text-sm font-bold text-emerald-700">Importación perfecta — no se detectaron inconsistencias.</p>
+            </div>
+          )}
+          {report.warnings.length > 0 && (
+            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+              <div className="p-4 border-b border-slate-100 flex items-center gap-2 bg-red-50">
+                <AlertTriangle size={15} className="text-red-500"/>
+                <span className="text-sm font-black text-red-700">Problemas de estructura ({report.warnings.length})</span>
               </div>
-            ))}
-          </div>
-        </div>
+              <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
+                {report.warnings.map((w,i) => (
+                  <div key={i} className="px-4 py-2.5 text-xs text-slate-600 flex items-start gap-2">
+                    <span className="text-red-300 mt-0.5 shrink-0">·</span>{w}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {report.deduped.length > 0 && (
+            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+              <div className="p-4 border-b border-slate-100 flex items-center gap-2 bg-amber-50">
+                <Merge size={15} className="text-amber-500"/>
+                <span className="text-sm font-black text-amber-700">Materias unificadas por tildes ({report.deduped.length})</span>
+              </div>
+              <div className="divide-y divide-slate-100 max-h-48 overflow-y-auto">
+                {report.deduped.map((d,i) => (
+                  <div key={i} className="px-4 py-2.5 flex items-center gap-2 text-xs">
+                    <span className="text-slate-400 line-through">{d.from}</span>
+                    <ArrowRight size={10} className="text-slate-300 shrink-0"/>
+                    <span className="font-bold text-slate-700">{d.to}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {report.skipped.length > 0 && (
+            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+              <div className="p-4 border-b border-slate-100 flex items-center gap-2">
+                <Info size={15} className="text-slate-400"/>
+                <span className="text-sm font-black text-slate-600">Celdas omitidas ({report.skipped.length})</span>
+              </div>
+              <div className="divide-y divide-slate-100 max-h-48 overflow-y-auto">
+                {report.skipped.map((s,i) => (
+                  <div key={i} className="px-4 py-2.5 text-xs text-slate-500 flex items-start gap-2">
+                    <span className="text-slate-300 mt-0.5 shrink-0">·</span>{s}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
 }
+
 
 // ─── Import Preview Table ─────────────────────────────────────────────────────
 function ImportPreview({ parsedPairs, courses, onConfirm, onBack }) {
@@ -350,24 +327,20 @@ function ImportPreview({ parsedPairs, courses, onConfirm, onBack }) {
     });
     return Array.from(map.values());
   }, [parsedPairs]);
-
   const totalOk      = parsedPairs.filter(p => p.rawSubject && p.rawTeacher).length;
   const totalNoTeach = parsedPairs.filter(p => p.rawSubject && !p.rawTeacher).length;
   const totalEmpty   = parsedPairs.filter(p => !p.rawSubject).length;
-
-  const [filter, setFilter] = useState('all'); // 'all' | 'issues'
+  const [filter, setFilter] = useState('all');
   const filtered = filter === 'issues'
     ? grouped.filter(g => g.entries.some(e => !e.rawTeacher || !e.rawSubject))
     : grouped;
-
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
             <h3 className="font-black text-slate-800 text-base">Vista previa — confirmá antes de guardar</h3>
-            <p className="text-xs text-slate-500 mt-1">Revisá que la información sea idéntica a tu archivo. Si hay errores, volvé atrás y corregí el CSV.</p>
+            <p className="text-xs text-slate-500 mt-1">Revisá que la información sea idéntica a tu archivo.</p>
           </div>
           <div className="flex gap-2 flex-wrap">
             <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-1.5 text-center">
@@ -384,8 +357,6 @@ function ImportPreview({ parsedPairs, courses, onConfirm, onBack }) {
             </div>
           </div>
         </div>
-
-        {/* Filter */}
         <div className="flex gap-2 items-center">
           <span className="text-[10px] font-black text-slate-400 uppercase">Ver:</span>
           {[['all','Todos'],['issues','Solo con problemas']].map(([v,l]) => (
@@ -396,8 +367,6 @@ function ImportPreview({ parsedPairs, courses, onConfirm, onBack }) {
           ))}
         </div>
       </div>
-
-      {/* Table */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         <div className="overflow-auto" style={{maxHeight:'50vh'}}>
           <table className="w-full border-collapse text-xs">
@@ -411,23 +380,17 @@ function ImportPreview({ parsedPairs, courses, onConfirm, onBack }) {
             <tbody>
               {filtered.map(group =>
                 group.entries.map((e, ei) => {
-                  const status = !e.rawSubject && !e.rawTeacher ? 'empty'
-                    : !e.rawTeacher ? 'no-teacher'
-                    : !e.rawSubject ? 'no-subject'
-                    : 'ok';
+                  const status = !e.rawSubject && !e.rawTeacher ? 'empty' : !e.rawTeacher ? 'no-teacher' : !e.rawSubject ? 'no-subject' : 'ok';
                   const statusEl = {
-                    ok:         <span className="text-emerald-600 font-bold flex items-center gap-1"><Check size={11}/>OK</span>,
+                    ok: <span className="text-emerald-600 font-bold flex items-center gap-1"><Check size={11}/>OK</span>,
                     'no-teacher': <span className="text-amber-600 font-bold flex items-center gap-1"><AlertTriangle size={11}/>Sin docente</span>,
                     'no-subject': <span className="text-red-500 font-bold flex items-center gap-1"><AlertCircle size={11}/>Sin materia</span>,
-                    empty:      <span className="text-slate-300 font-bold">—</span>,
+                    empty: <span className="text-slate-300 font-bold">—</span>,
                   }[status];
                   return (
                     <tr key={`${group.dayName}-${group.modNum}-${ei}`}
                       className={`border-b border-slate-100 transition-colors
-                        ${status==='ok'?'hover:bg-slate-50'
-                          :status==='no-teacher'?'bg-amber-50/40 hover:bg-amber-50'
-                          :status==='no-subject'?'bg-red-50/40 hover:bg-red-50'
-                          :'bg-slate-50/40'}`}>
+                        ${status==='ok'?'hover:bg-slate-50':status==='no-teacher'?'bg-amber-50/40 hover:bg-amber-50':status==='no-subject'?'bg-red-50/40 hover:bg-red-50':'bg-slate-50/40'}`}>
                       <td className="p-3 font-bold text-slate-600 whitespace-nowrap">{ei===0?group.dayName:''}</td>
                       <td className="p-3 font-black text-indigo-500 whitespace-nowrap">{ei===0?`${group.modNum}°`:''}</td>
                       <td className="p-3 font-bold text-slate-700 whitespace-nowrap">{e.courseName}</td>
@@ -442,15 +405,11 @@ function ImportPreview({ parsedPairs, courses, onConfirm, onBack }) {
           </table>
         </div>
       </div>
-
-      {/* Actions */}
       <div className="flex gap-3 justify-end">
-        <button onClick={onBack}
-          className="px-5 py-2.5 rounded-xl font-bold text-sm border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-2">
+        <button onClick={onBack} className="px-5 py-2.5 rounded-xl font-bold text-sm border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-2">
           <ChevronLeft size={14}/> Volver y corregir
         </button>
-        <button onClick={onConfirm}
-          className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors flex items-center gap-2">
+        <button onClick={onConfirm} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors flex items-center gap-2">
           <Check size={14}/> Confirmar e Importar
         </button>
       </div>
@@ -460,21 +419,14 @@ function ImportPreview({ parsedPairs, courses, onConfirm, onBack }) {
 
 
 // ─── Firebase dynamic loader ──────────────────────────────────────────────────
-// Loads Firebase SDK from CDN at runtime — no build step needed.
 const FIREBASE_CDN = 'https://www.gstatic.com/firebasejs/10.12.2/';
-
 async function loadFirebase(config) {
   if (!window._fbApp) {
-    const [
-      { initializeApp },
-      { getFirestore, doc, setDoc, onSnapshot, getDoc },
-      { getAuth, signInAnonymously }
-    ] = await Promise.all([
+    const [{ initializeApp },{ getFirestore, doc, setDoc, onSnapshot, getDoc },{ getAuth, signInAnonymously }] = await Promise.all([
       import(FIREBASE_CDN + 'firebase-app.js'),
       import(FIREBASE_CDN + 'firebase-firestore.js'),
       import(FIREBASE_CDN + 'firebase-auth.js'),
     ]);
-    
     window._fbApp = initializeApp(config, 'masterschedule');
     window._fbFirestore = getFirestore(window._fbApp);
     window._fbAuth = getAuth(window._fbApp);
@@ -482,66 +434,58 @@ async function loadFirebase(config) {
   }
   return { db: window._fbFirestore, auth: window._fbAuth, ...window._fbOps };
 }
-
-// Storage key for the firebase config the user pasted
 const FB_CONFIG_KEY = 'masterschedule-firebase-config';
-
 async function loadSavedFBConfig() {
-  try {
-    const v = localStorage.getItem(FB_CONFIG_KEY);
-    if (v) return JSON.parse(v);
-  } catch(_) {}
+  try { const v = localStorage.getItem(FB_CONFIG_KEY); if (v) return JSON.parse(v); } catch(_) {}
   return null;
 }
+async function saveFBConfig(cfg) { localStorage.setItem(FB_CONFIG_KEY, JSON.stringify(cfg)); }
 
-async function saveFBConfig(cfg) {
-  localStorage.setItem(FB_CONFIG_KEY, JSON.stringify(cfg));
-}
-
-// ─── useFirestore hook ────────────────────────────────────────────────────────
-// Returns { ready, save, subscribe, status }
 function useFirestore(fbConfig) {
-  const [status, setStatus] = React.useState('idle'); // idle|connecting|connected|error
-  const opsRef  = React.useRef(null);
-  const docPath = 'masterschedule/v1';
+  const [status, setStatus] = React.useState('idle');
+  const opsRef   = React.useRef(null);
+  const readyRef = React.useRef(false); // mutable flag, never stale in closures
+  const docPath  = 'masterschedule/v1';
 
-React.useEffect(() => {
-    if (!fbConfig) { setStatus('idle'); return; }
+  React.useEffect(() => {
+    if (!fbConfig) { setStatus('idle'); opsRef.current = null; readyRef.current = false; return; }
     setStatus('connecting');
-    loadFirebase(fbConfig)
-      .then(async (ops) => {
-        try {
-          // Paso crítico: Iniciar sesión anónimamente para tener permiso de lectura
-          await ops.signInAnonymously(ops.auth);
-          opsRef.current = ops;
-          setStatus('connected');
-        } catch (authErr) {
-          console.error("Error de Auth:", authErr);
-          setStatus('error');
-        }
-      })
-      .catch((e) => {
-        console.error("Error al cargar Firebase:", e);
+    readyRef.current = false;
+    loadFirebase(fbConfig).then(async (ops) => {
+      try {
+        await ops.signInAnonymously(ops.auth);
+        opsRef.current = ops;
+        readyRef.current = true;
+        setStatus('connected');
+      } catch (authErr) {
+        console.error('Firebase Auth error:', authErr);
+        readyRef.current = false;
         setStatus('error');
-      });
+      }
+    }).catch((e) => {
+      console.error('Firebase load error:', e);
+      readyRef.current = false;
+      setStatus('error');
+    });
   }, [fbConfig]);
 
+  // No deps — always reads live refs, never stale
   const save = React.useCallback(async (data) => {
-    if (!opsRef.current || status !== 'connected') return false;
+    if (!readyRef.current || !opsRef.current) return false;
     const { db, doc, setDoc } = opsRef.current;
     await setDoc(doc(db, docPath), { ...data, _ts: Date.now() }, { merge: true });
     return true;
-  }, [status]);
+  }, []);
 
   const subscribe = React.useCallback((onData, onError) => {
-    if (!opsRef.current || status !== 'connected') return () => {};
+    if (!readyRef.current || !opsRef.current) return () => {};
     const { db, doc, onSnapshot } = opsRef.current;
     return onSnapshot(
       doc(db, docPath),
       snap => onData(snap.exists() ? snap.data() : null),
-      err => onError?.(err),
+      err  => onError?.(err)
     );
-  }, [status]);
+  }, []);
 
   return { ready: status === 'connected', status, save, subscribe };
 }
@@ -551,57 +495,39 @@ function ConflictPanel({ conflicts, onNavigate, onEdit }) {
   const [open, setOpen] = React.useState(true);
   return (
     <div className="bg-red-50 border border-red-200 rounded-2xl overflow-hidden">
-      {/* header — always visible */}
-      <button
-        onClick={() => setOpen(o => !o)}
+      <button onClick={() => setOpen(o => !o)}
         className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-100/60 transition-colors text-left">
         <AlertTriangle size={15} className="text-red-500 shrink-0"/>
         <p className="flex-1 text-sm text-red-700 font-black">
           {conflicts.length} conflicto{conflicts.length !== 1 ? 's' : ''} detectado{conflicts.length !== 1 ? 's' : ''}
           <span className="font-medium ml-1.5">— docente asignado a más de un curso en el mismo módulo</span>
         </p>
-        <ChevronDown
-          size={15}
-          className={`text-red-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}/>
+        <ChevronDown size={15} className={`text-red-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}/>
       </button>
-
-      {/* detail list */}
       {open && (
         <div className="border-t border-red-200 divide-y divide-red-100">
           {conflicts.map((c, i) => (
             <div key={i} className="px-4 py-3 flex items-start gap-3">
-              {/* teacher avatar */}
               <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border text-xs font-black mt-0.5 text-white"
-  style={{backgroundColor: c.teacher?.colorHex || '#94a3b8', borderColor: c.teacher?.colorHex || '#94a3b8'}}>
+                style={teacherAvatarStyle(c.teacher?.colorHex)}>
                 {c.teacher?.name?.charAt(0)?.toUpperCase() ?? '?'}
               </div>
-
-              {/* info */}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-black text-red-800">
-                  {c.teacher?.name ?? 'Docente desconocido'}
-                </p>
+                <p className="text-sm font-black text-red-800">{c.teacher?.name ?? 'Docente desconocido'}</p>
                 <p className="text-xs text-red-600 font-medium mt-0.5">
                   {c.day} · {c.period.mod}° módulo ({c.period.start}–{c.period.end})
                 </p>
-                {/* affected courses as chips */}
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {c.entries.map(e => (
-                    <button
-                      key={e.key}
-                      onClick={() => onEdit(c.dayIdx, c.period.id, e.course.id)}
+                    <button key={e.key} onClick={() => onEdit(c.dayIdx, c.period.id, e.course.id)}
                       title="Clic para editar esta celda"
                       className="flex items-center gap-1 bg-white border border-red-300 text-red-700 text-xs font-bold px-2.5 py-1 rounded-lg hover:bg-red-100 transition-colors">
-                      {e.course.name}
-                      <Edit2 size={10} className="opacity-60"/>
+                      {e.course.name}<Edit2 size={10} className="opacity-60"/>
                     </button>
                   ))}
                 </div>
               </div>
-
-              {/* navigate to that day */}
-              <button
-                onClick={() => onNavigate(c.dayIdx)}
+              <button onClick={() => onNavigate(c.dayIdx)}
                 className="text-[10px] font-bold text-red-500 border border-red-200 bg-white hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors shrink-0 mt-0.5">
                 Ver día
               </button>
@@ -613,24 +539,20 @@ function ConflictPanel({ conflicts, onNavigate, onEdit }) {
   );
 }
 
+
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
 
-  // Forzar el título de la pestaña
-  useEffect(() => {
-    document.title = "Horaria";
-  }, []);
-  
+  useEffect(() => { document.title = "Horaria"; }, []);
+
   // Core data
   const [courses,  setCourses]  = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [schedule,  setSchedule]  = useState({});
-  const [mappings,  setMappings]   = useState({ teachers:{}, subjects:{} }); // learned corrections
-  // Undo/redo history — stores snapshots of schedule only (lightweight)
-  const history    = useRef([{}]); // array of schedule snapshots
-  const historyIdx = useRef(0);    // pointer into history
-  // We need these as state so buttons re-render when they change
+  const [mappings,  setMappings]   = useState({ teachers:{}, subjects:{} });
+  const history    = useRef([{}]);
+  const historyIdx = useRef(0);
   const [historyIdx_s, setHistoryIdxS] = useState(0);
 
   // UI
@@ -640,106 +562,80 @@ export default function App() {
   const [message,     setMessage]    = useState(null);
   const [searchTerm,  setSearchTerm] = useState('');
   const [cloudStatus, setCloudStatus]= useState('loading');
-
-  // Import flow: 'input' | 'preview' | 'done'
   const [importStep,    setImportStep]    = useState('input');
-  const [parsedPreview, setParsedPreview] = useState(null); // {parsedPairs, warnings, detectedCourses}
-  const [lastReport,    setLastReport]    = useState(null); // persists after import
-
-  // Editing
+  const [parsedPreview, setParsedPreview] = useState(null);
+  const [lastReport,    setLastReport]    = useState(null);
   const [editingCell,    setEditingCell]    = useState(null);
   const [editingTeacher, setEditingTeacher] = useState(null);
   const [editingSubject, setEditingSubject] = useState(null);
   const [mergingSubject, setMergingSubject] = useState(null);
-  const [mergeModal,     setMergeModal]     = useState(null); // {items:[{id,name}], isTeachers}
+  const [mergeModal,     setMergeModal]     = useState(null);
   const [mergeKeepId,    setMergeKeepId]    = useState(null);
   const [listSearch,     setListSearch]     = useState('');
-  const [selectedItems,  setSelectedItems]  = useState(new Set()); // ids
-
-  // Reports
+  const [selectedItems,  setSelectedItems]  = useState(new Set());
   const [reportType,      setReportType]      = useState('teacher');
   const [reportSelection, setReportSelection] = useState('');
-
-  // Firebase config state
-  const [fbConfig,     setFbConfig]     = useState(null);   // parsed config object | null
-  const [fbConfigText, setFbConfigText] = useState('');     // raw text in settings input
-  const [fbConfigErr,  setFbConfigErr]  = useState('');     // parse error message
+  const [fbConfig,     setFbConfig]     = useState(null);
+  const [fbConfigText, setFbConfigText] = useState('');
+  const [fbConfigErr,  setFbConfigErr]  = useState('');
 
   const { ready: fbReady, status: fbStatus, save: fbSave, subscribe: fbSubscribe } = useFirestore(fbConfig);
-
-  // Keep latest local state for one-time Firebase seeding on first connect
   const latestDataRef = useRef({ courses:[], teachers:[], subjects:[], schedule:{}, lastReport:null, mappings:{ teachers:{}, subjects:{} } });
-  useEffect(() => {
-    latestDataRef.current = { courses, teachers, subjects, schedule, lastReport, mappings };
-  }, [courses, teachers, subjects, schedule, lastReport, mappings]);
+  useEffect(() => { latestDataRef.current = { courses, teachers, subjects, schedule, lastReport, mappings }; }, [courses, teachers, subjects, schedule, lastReport, mappings]);
   const seededFirebaseRef = useRef(false);
 
-  // ── Load saved Firebase config on mount ───────────────────────────────────
   useEffect(() => {
     loadSavedFBConfig().then(cfg => {
       if (cfg) { setFbConfig(cfg); setFbConfigText(JSON.stringify(cfg, null, 2)); }
     });
   }, []);
 
-  // ── Subscribe to Firestore when connected ─────────────────────────────────
   useEffect(() => {
     if (!fbReady) return;
     setCloudStatus('syncing');
+
     const unsub = fbSubscribe((data) => {
-      // If doc exists, hydrate from cloud
       if (data) {
-        seededFirebaseRef.current = true;
-        if (data.courses)    setCourses(data.courses);
-        if (data.teachers)   setTeachers(data.teachers);
-        if (data.subjects)   setSubjects(data.subjects);
-        if (data.schedule)   setSchedule(data.schedule);
-        if (data.lastReport) setLastReport(data.lastReport);
-        if (data.mappings)   setMappings(data.mappings);
+        // Cloud always wins — set everything unconditionally
+        setCourses(data.courses    || []);
+        setTeachers(data.teachers  || []);
+        setSubjects(data.subjects  || []);
+        setSchedule(data.schedule  || {});
+        setLastReport(data.lastReport || null);
+        setMappings(data.mappings  || { teachers:{}, subjects:{} });
         setCloudStatus('saved');
         return;
       }
-
-      // Doc missing (first time using this Firebase project).
-      // If this browser already has local data, seed Firebase once so other devices can see it.
+      // Doc missing — seed from local data if this browser has any
       const local = latestDataRef.current;
       const hasLocal =
-        (local.courses?.length || 0) > 0 ||
+        (local.courses?.length  || 0) > 0 ||
         (local.teachers?.length || 0) > 0 ||
-        (local.subjects?.length || 0) > 0 ||
         (local.schedule && Object.keys(local.schedule).length > 0);
-
-      if (!seededFirebaseRef.current && hasLocal) {
+      if (hasLocal && !seededFirebaseRef.current) {
         seededFirebaseRef.current = true;
-        (async () => {
-          try {
-            await fbSave({
-              courses:    local.courses,
-              teachers:   local.teachers,
-              subjects:   local.subjects,
-              schedule:   local.schedule,
-              lastReport: local.lastReport,
-              mappings:   local.mappings,
-            });
-          } catch (_) {
-            setCloudStatus('error');
-          }
-        })();
-        return;
+        fbSave({
+          courses:    local.courses    || [],
+          teachers:   local.teachers   || [],
+          subjects:   local.subjects   || [],
+          schedule:   local.schedule   || {},
+          lastReport: local.lastReport || null,
+          mappings:   local.mappings   || { teachers:{}, subjects:{} },
+        }).catch(() => setCloudStatus('error'));
+      } else {
+        setCloudStatus('saved');
       }
-
-      // No cloud doc and no local data — just mark connected.
-      setCloudStatus('saved');
     }, (err) => {
       setCloudStatus('error');
-      setMessage({ text: `Firebase: ${err?.message || 'Error de permisos o conexión'}`, type: 'error' });
-      setTimeout(() => setMessage(null), 4500);
+      setMessage({ text: `Firebase: ${err?.message || 'Error de conexión o permisos'}`, type: 'error' });
+      setTimeout(() => setMessage(null), 6000);
     });
-    return unsub;
-  }, [fbReady, fbSubscribe, fbSave]);
 
-  // ── Fallback: load from localStorage if no Firebase ─────────────────────
+    return unsub;
+  }, [fbReady]); // fbSubscribe and fbSave are stable (no internal deps)
+
   useEffect(() => {
-    if (fbConfig) return; // Firebase will handle it
+    if (fbConfig) return;
     (async () => {
       try {
         const raw = localStorage.getItem('masterschedule-v3');
@@ -761,52 +657,33 @@ export default function App() {
     const data = { courses:c, teachers:t, subjects:subj, schedule:s, lastReport:report, mappings: maps ?? mappings };
     setCloudStatus('syncing');
     try {
-      if (fbReady) {
-        await fbSave(data);
-      } else {
-        localStorage.setItem('masterschedule-v3', JSON.stringify(data));
-      }
+      if (fbReady) { await fbSave(data); }
+      else { localStorage.setItem('masterschedule-v3', JSON.stringify(data)); }
       setCloudStatus('saved');
     } catch (_) { setCloudStatus('error'); }
   }, [fbReady, fbSave, mappings]);
 
-  // ── Parse + connect Firebase config ──────────────────────────────────────
   const handleConnectFirebase = useCallback(async () => {
     setFbConfigErr('');
     let parsed = null;
-
     try {
-      // Estrategia a prueba de novatos: buscar claves directamente en el texto,
-      // aunque hayan pegado el snippet completo con código alrededor.
       const keysToFind = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId', 'measurementId'];
       const extractedConfig = {};
-
       keysToFind.forEach(key => {
         const regex = new RegExp(`${key}\\s*:\\s*['"]([^'"]+)['"]`);
         const match = fbConfigText.match(regex);
         if (match && match[1]) extractedConfig[key] = match[1];
       });
-
-      if (extractedConfig.apiKey && extractedConfig.projectId) {
-        parsed = extractedConfig;
-      } else {
-        // Fallback: JSON estricto
-        try {
-          parsed = JSON.parse(fbConfigText.trim());
-        } catch (_) {
-          throw new Error('No se detectaron credenciales válidas en el texto.');
-        }
+      if (extractedConfig.apiKey && extractedConfig.projectId) { parsed = extractedConfig; }
+      else {
+        try { parsed = JSON.parse(fbConfigText.trim()); }
+        catch (_) { throw new Error('No se detectaron credenciales válidas en el texto.'); }
       }
-
-      if (!parsed || !parsed.apiKey || !parsed.projectId) {
-        throw new Error('Faltan campos obligatorios (apiKey, projectId).');
-      }
+      if (!parsed || !parsed.apiKey || !parsed.projectId) throw new Error('Faltan campos obligatorios (apiKey, projectId).');
     } catch (_) {
       setFbConfigErr('No se pudo leer la configuración. Asegurate de copiar el bloque "const firebaseConfig = { ... }" que te da Firebase.');
       return;
     }
-
-    // Reset cached Firebase instance so it reconnects with new config
     window._fbApp = null; window._fbFirestore = null; window._fbOps = null;
     await saveFBConfig(parsed);
     setFbConfig(parsed);
@@ -821,10 +698,8 @@ export default function App() {
     showMsg('Desconectado de Firebase. Usando almacenamiento local.');
   }, []);
 
-  // Push a new schedule snapshot to history
   const pushHistory = useCallback((newSchedule) => {
     const idx  = historyIdx.current;
-    // Truncate any forward history
     history.current = history.current.slice(0, idx + 1);
     history.current.push(newSchedule);
     historyIdx.current = history.current.length - 1;
@@ -854,7 +729,6 @@ export default function App() {
     setTimeout(() => setMessage(null), 3000);
   };
 
-  // ── Keyboard shortcuts: Ctrl+Z / Ctrl+Y ─────────────────────────────────
   useEffect(() => {
     const handler = (e) => {
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') { e.preventDefault(); undo(); }
@@ -864,33 +738,26 @@ export default function App() {
     return () => window.removeEventListener('keydown', handler);
   }, [undo, redo]);
 
-  // ── IMPORT — Step 1: Parse & Preview ─────────────────────────────────────
+
+  // ── IMPORT ────────────────────────────────────────────────────────────────
   const handleAnalyze = () => {
     if (!csvContent.trim()) return;
     const { detectedCourses, parsedPairs, warnings } = parseCSV(csvContent);
-    if (parsedPairs.length === 0) {
-      showMsg('No se encontraron datos válidos en el CSV. Verificá el formato.', 'error');
-      return;
-    }
+    if (parsedPairs.length === 0) { showMsg('No se encontraron datos válidos en el CSV. Verificá el formato.', 'error'); return; }
     setParsedPreview({ parsedPairs, warnings, detectedCourses });
     setImportStep('preview');
   };
 
-  // ── IMPORT — Step 2: Confirm & Commit ────────────────────────────────────
   const handleConfirmImport = () => {
     const { parsedPairs, warnings, detectedCourses } = parsedPreview;
-
     const subjectByNorm = new Map();
     subjects.forEach(s => subjectByNorm.set(nc(s.name), s));
     const teacherMap = new Map(teachers.map(t => [nc(t.name), t]));
-
-    // Apply learned mappings: resolve raw CSV name → canonical name
     const applyMapping = (raw, type) => {
       if (!raw) return raw;
       const key = nc(raw);
       return mappings[type]?.[key] || raw;
     };
-
     const newSchedule = {};
     const deduped = [];
     const skipped = [];
@@ -902,9 +769,7 @@ export default function App() {
       const key = nc(name);
       if (subjectByNorm.has(key)) {
         const existing = subjectByNorm.get(key);
-        if (existing.name !== name && !deduped.find(d => d.from === name)) {
-          deduped.push({ from: name, to: existing.name });
-        }
+        if (existing.name !== name && !deduped.find(d => d.from === name)) deduped.push({ from: name, to: existing.name });
         return existing;
       }
       const s = { id:`s-${uid()}`, name };
@@ -917,40 +782,29 @@ export default function App() {
       if (!name || name.length < 2) return null;
       const key = nc(name);
       if (teacherMap.has(key)) return teacherMap.get(key);
-      // Asigna el color en orden secuencial usando el tamaño de la lista de docentes
       const colorHex = HEX_COLORS[teacherMap.size % HEX_COLORS.length];
-const t = { id:`t-${uid()}`, name, color: '', colorHex, subject:'' };
+      const t = { id:`t-${uid()}`, name, color: '', colorHex, subject:'' };
       teacherMap.set(key, t);
       return t;
     };
-    
-    // Build course list from parsedPairs
+
     const courseNames = [...new Set(parsedPairs.map(p => p.courseName))];
     const newCourses = courseNames.map((name, i) => ({ id: i+1, name }));
     const courseIdByName = new Map(newCourses.map(c => [c.name, c.id]));
 
     parsedPairs.forEach(p => {
       if (nc(p.rawSubject).includes('recreo') || nc(p.rawSubject).includes('libre')) return;
-
       const subject = p.rawSubject ? getOrCreateSubject(p.rawSubject) : null;
       const teacher = p.rawTeacher ? getOrCreateTeacher(p.rawTeacher) : null;
-
       if (!subject) {
-        if (p.rawSubject || p.rawTeacher) {
-          skipped.push(`${p.dayName} Mód.${p.modNum} ${p.courseName}: sin materia`);
-        }
+        if (p.rawSubject || p.rawTeacher) skipped.push(`${p.dayName} Mód.${p.modNum} ${p.courseName}: sin materia`);
         return;
       }
-      if (!teacher && p.rawTeacher) {
-        skipped.push(`${p.dayName} Mód.${p.modNum} ${p.courseName}: docente inválido ("${p.rawTeacher}")`);
-      }
-
+      if (!teacher && p.rawTeacher) skipped.push(`${p.dayName} Mód.${p.modNum} ${p.courseName}: docente inválido ("${p.rawTeacher}")`);
       const period = FIXED_PERIODS.find(fp => fp.mod === p.modNum);
       if (!period) return;
-
       const courseId = courseIdByName.get(p.courseName);
       if (!courseId) return;
-
       const key = `${p.dayIdx}-${period.id}-${courseId}`;
       newSchedule[key] = { teacherId: teacher?.id ?? '', subjectId: subject.id };
       importedCount++;
@@ -962,35 +816,15 @@ const t = { id:`t-${uid()}`, name, color: '', colorHex, subject:'' };
       return { ...t, subject: newSubjectList.filter(s=>mySubjIds.has(s.id)).map(s=>s.name).join(', ') };
     });
 
-    const report = {
-      courses:  newCourses.length,
-      teachers: newTeacherList.length,
-      subjects: newSubjectList.length,
-      imported: importedCount,
-      warnings,
-      deduped,
-      skipped,
-      date: new Date().toLocaleString('es-AR'),
-    };
-
-    setCourses(newCourses);
-    setTeachers(newTeacherList);
-    setSubjects(newSubjectList);
-    pushHistory(newSchedule);
-    setSchedule(newSchedule);
-    setLastReport(report);
+    const report = { courses: newCourses.length, teachers: newTeacherList.length, subjects: newSubjectList.length, imported: importedCount, warnings, deduped, skipped, date: new Date().toLocaleString('es-AR') };
+    setCourses(newCourses); setTeachers(newTeacherList); setSubjects(newSubjectList);
+    pushHistory(newSchedule); setSchedule(newSchedule); setLastReport(report);
     saveAll(newCourses, newTeacherList, newSubjectList, newSchedule, report);
-
-    setCsvContent('');
-    setParsedPreview(null);
-    setImportStep('input');
-    setActiveTab('alerts');
-    showMsg('Importación completada.');
+    setCsvContent(''); setParsedPreview(null); setImportStep('input');
+    setActiveTab('alerts'); showMsg('Importación completada.');
   };
 
   // ── Conflicts ─────────────────────────────────────────────────────────────
-  // conflictKeys: Set of schedule keys that are part of a conflict (for cell highlighting)
-  // conflictList: Array of {teacher, day, dayIdx, period, courses:[]} for the detail panel
   const { conflictKeys, conflictList } = useMemo(() => {
     const keys = new Set();
     const list = [];
@@ -1012,11 +846,9 @@ const t = { id:`t-${uid()}`, name, color: '', colorHex, subject:'' };
         });
       });
     });
-    // Sort by day then module
     list.sort((a,b) => a.dayIdx - b.dayIdx || a.period.mod - b.period.mod);
     return { conflictKeys: keys, conflictList: list };
   }, [schedule, courses, teachers]);
-  // Keep legacy alias for cell highlighting
   const conflicts     = conflictKeys;
   const conflictPairs = conflictList.length;
 
@@ -1035,13 +867,11 @@ const t = { id:`t-${uid()}`, name, color: '', colorHex, subject:'' };
     const cell = schedule[key] || {};
     setEditingCell({ key, teacherId: cell.teacherId||'', subjectId: cell.subjectId||'' });
   };
-
   const saveCell = (key, data) => {
     const ns2 = { ...schedule };
     if (!data.teacherId && !data.subjectId) delete ns2[key];
     else ns2[key] = { teacherId: data.teacherId, subjectId: data.subjectId };
-    pushHistory(ns2);
-    setSchedule(ns2);
+    pushHistory(ns2); setSchedule(ns2);
     saveAll(courses, teachers, subjects, ns2, lastReport);
     setEditingCell(null);
   };
@@ -1081,12 +911,8 @@ const t = { id:`t-${uid()}`, name, color: '', colorHex, subject:'' };
     const sched2 = {...schedule};
     Object.keys(sched2).forEach(k => { if (sched2[k].subjectId===removeId) sched2[k]={...sched2[k],subjectId:keepId}; });
     const ns2 = subjects.filter(s=>s.id!==removeId);
-    // Learn: map removed name → kept name (normalised key → canonical name)
-    const newMaps = { ...mappings,
-      subjects: { ...mappings.subjects, [nc(removeSubj?.name||'')]: keepSubj?.name||'' }
-    };
-    setMappings(newMaps);
-    setSubjects(ns2); setSchedule(sched2);
+    const newMaps = { ...mappings, subjects: { ...mappings.subjects, [nc(removeSubj?.name||'')]: keepSubj?.name||'' } };
+    setMappings(newMaps); setSubjects(ns2); setSchedule(sched2);
     saveAll(courses, teachers, ns2, sched2, lastReport, newMaps);
     setMergingSubject(null); showMsg('Materias unificadas y aprendidas.');
   };
@@ -1097,12 +923,8 @@ const t = { id:`t-${uid()}`, name, color: '', colorHex, subject:'' };
     const sched2 = {...schedule};
     Object.keys(sched2).forEach(k => { if (sched2[k].teacherId===removeId) sched2[k]={...sched2[k],teacherId:keepId}; });
     const nt = teachers.filter(t=>t.id!==removeId);
-    // Learn: map removed name → kept name
-    const newMaps = { ...mappings,
-      teachers: { ...mappings.teachers, [nc(removeT?.name||'')]: keepT?.name||'' }
-    };
-    setMappings(newMaps);
-    setTeachers(nt); setSchedule(sched2);
+    const newMaps = { ...mappings, teachers: { ...mappings.teachers, [nc(removeT?.name||'')]: keepT?.name||'' } };
+    setMappings(newMaps); setTeachers(nt); setSchedule(sched2);
     saveAll(courses, nt, subjects, sched2, lastReport, newMaps);
     showMsg('Docentes unificados y aprendidos.');
   };
@@ -1117,11 +939,7 @@ const t = { id:`t-${uid()}`, name, color: '', colorHex, subject:'' };
   // ── Derived ───────────────────────────────────────────────────────────────
   const potentialDuplicates = useMemo(() => {
     const groups = new Map();
-    subjects.forEach(s => {
-      const key = nc(s.name);
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(s);
-    });
+    subjects.forEach(s => { const key = nc(s.name); if (!groups.has(key)) groups.set(key, []); groups.get(key).push(s); });
     return Array.from(groups.values()).filter(g => g.length > 1);
   }, [subjects]);
 
@@ -1131,7 +949,8 @@ const t = { id:`t-${uid()}`, name, color: '', colorHex, subject:'' };
     return map;
   }, [schedule]);
 
-  const alertCount = (lastReport?.warnings?.length||0) + (lastReport?.skipped?.length||0);
+  const alertCount = (lastReport?.warnings?.length||0) + (lastReport?.skipped?.length||0) + conflictList.length;
+
 
   // ── Report refs & export ─────────────────────────────────────────────────
   const reportTableRef = useRef(null);
@@ -1157,65 +976,41 @@ const t = { id:`t-${uid()}`, name, color: '', colorHex, subject:'' };
     const title    = reportTitleRef.current || 'Reporte';
     const date     = new Date().toLocaleDateString('es-AR');
     const tableHtml = table.outerHTML;
-
-    const html = `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8"/>
-  <title>${title}</title>
-  <style>
-    @page { size: A4 landscape; margin: 12mm 14mm; }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: Arial, sans-serif; font-size: 8pt; color: #1e293b; }
-    h1 { font-size: 13pt; font-weight: 900; margin-bottom: 2mm; text-transform: uppercase; letter-spacing: .03em; }
-    .meta { font-size: 7pt; color: #94a3b8; margin-bottom: 5mm; }
-    table { width: 100%; border-collapse: collapse; }
-    th { background: #4f46e5; color: #fff; font-size: 7pt; font-weight: 700;
-         padding: 4px 5px; text-align: left; text-transform: uppercase; border: 1px solid #3730a3; }
-    td { padding: 4px 5px; border: 1px solid #e2e8f0; font-size: 7.5pt; vertical-align: top; }
-    tr:nth-child(even) td { background: #f8fafc; }
-    td:first-child { background: #f1f5f9 !important; font-weight: 700; text-align: center; white-space: nowrap; }
-    .top { font-weight: 700; color: #1e293b; }
-    .bot { font-size: 6.5pt; color: #64748b; margin-top: 1px; text-transform: uppercase; }
-    @media screen { body { padding: 10mm; } }
-  </style>
-</head>
-<body>
-  <h1>${title}</h1>
-  <p class="meta">MasterSchedule &nbsp;·&nbsp; ${date}</p>
-  ${tableHtml}
-  <script>
-    document.querySelectorAll('td div:first-child').forEach(el => el.classList.add('top'));
-    document.querySelectorAll('td div:last-child:not(:first-child)').forEach(el => el.classList.add('bot'));
-    window.print();
-    window.onafterprint = () => window.close();
-  <\/script>
-</body>
-</html>`;
-
-    // Open synchronously inside the click handler — avoids popup blocker.
-    // Use a Blob URL instead of window.open('','_blank') + document.write,
-    // which is more reliable across browsers and doesn't need write permission.
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/><title>${title}</title>
+<style>
+@page{size:A4 landscape;margin:12mm 14mm;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:Arial,sans-serif;font-size:8pt;color:#1e293b;}
+h1{font-size:13pt;font-weight:900;margin-bottom:2mm;text-transform:uppercase;letter-spacing:.03em;}
+.meta{font-size:7pt;color:#94a3b8;margin-bottom:5mm;}
+table{width:100%;border-collapse:collapse;}
+th{background:#4f46e5;color:#fff;font-size:7pt;font-weight:700;padding:4px 5px;text-align:left;text-transform:uppercase;border:1px solid #3730a3;}
+td{padding:4px 5px;border:1px solid #e2e8f0;font-size:7.5pt;vertical-align:top;}
+tr:nth-child(even) td{background:#f8fafc;}
+td:first-child{background:#f1f5f9!important;font-weight:700;text-align:center;white-space:nowrap;}
+.top{font-weight:700;color:#1e293b;}
+.bot{font-size:6.5pt;color:#64748b;margin-top:1px;text-transform:uppercase;}
+@media screen{body{padding:10mm;}}
+</style></head><body>
+<h1>${title}</h1><p class="meta">Horaria · ${date}</p>${tableHtml}
+<script>
+document.querySelectorAll('td div:first-child').forEach(el=>el.classList.add('top'));
+document.querySelectorAll('td div:last-child:not(:first-child)').forEach(el=>el.classList.add('bot'));
+window.print();window.onafterprint=()=>window.close();
+<\/script></body></html>`;
     const blob = new Blob([html], { type: 'text/html' });
     const url  = URL.createObjectURL(blob);
     const win  = window.open(url, '_blank');
-    if (!win) {
-      // Genuine block (e.g. strict browser setting) — fall back to same-tab
-      window.location.href = url;
-    }
-    // Revoke after a delay so the new tab has time to load it
+    if (!win) window.location.href = url;
     setTimeout(() => URL.revokeObjectURL(url), 10000);
   }, []);
 
-  // ── Shared: horizontal schedule grid + export buttons ─────────────────────
-  // rows = modules (FIXED_PERIODS filtered), cols = DAYS
-  // cellFn(dayIdx, period) → {top: string, bottom: string} | null
+  // ── Schedule Grid (shared report component) ───────────────────────────────
   const ScheduleGrid = useCallback(({ title, cellFn, modCount }) => {
     reportTitleRef.current = title;
     const classPeriods = FIXED_PERIODS.filter(p => p.type==='class' || p.type==='pe');
     return (
       <div className="space-y-3">
-        {/* toolbar */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-5 py-3 flex items-center justify-between flex-wrap gap-3">
           <div>
             <h3 className="font-black text-slate-800 text-sm uppercase tracking-wide">{title}</h3>
@@ -1236,16 +1031,13 @@ const t = { id:`t-${uid()}`, name, color: '', colorHex, subject:'' };
             </button>
           </div>
         </div>
-        {/* table */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table ref={reportTableRef} className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase">
                   <th className="p-3 border-b border-r border-slate-200 w-20 text-center">Mód.</th>
-                  {DAYS.map(d => (
-                    <th key={d} className="p-3 border-b border-r border-slate-200 min-w-[140px]">{d}</th>
-                  ))}
+                  {DAYS.map(d => <th key={d} className="p-3 border-b border-r border-slate-200 min-w-[140px]">{d}</th>)}
                 </tr>
               </thead>
               <tbody>
@@ -1286,14 +1078,10 @@ const t = { id:`t-${uid()}`, name, color: '', colorHex, subject:'' };
         <p className="font-bold text-slate-400 text-sm">Seleccioná un elemento para ver el reporte</p>
       </div>
     );
-
-    // ── Docente ───────────────────────────────────────────────────────────
     if (reportType === 'teacher') {
       const teacher = teachers.find(t => t.id === reportSelection);
       if (!teacher) return null;
       const modCount = Object.values(schedule).filter(v => v.teacherId === teacher.id).length;
-
-      // Pre-index: {dayIdx-periodId → {subjectName, courseName}}
       const idx = {};
       Object.entries(schedule).forEach(([key, val]) => {
         if (val.teacherId !== teacher.id) return;
@@ -1302,12 +1090,11 @@ const t = { id:`t-${uid()}`, name, color: '', colorHex, subject:'' };
         const course = courses.find(c => c.id === parseInt(cI));
         idx[`${dI}-${pI}`] = { top: subj?.name || '—', bottom: course?.name || '' };
       });
-
       return (
         <div className="space-y-3">
-          {/* teacher header */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-5 py-4 flex items-center gap-4">
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border-2 text-xl font-black shrink-0 ${teacher.color}`}>
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center border-2 text-xl font-black shrink-0 text-white"
+              style={teacherAvatarStyle(teacher.colorHex)}>
               {teacher.name.charAt(0).toUpperCase()}
             </div>
             <div>
@@ -1315,39 +1102,26 @@ const t = { id:`t-${uid()}`, name, color: '', colorHex, subject:'' };
               <div className="text-xs text-slate-400 font-bold mt-0.5">{teacher.subject || 'Sin materias asignadas'}</div>
             </div>
           </div>
-          <ScheduleGrid
-            title={`Horario docente: ${teacher.name}`}
-            modCount={modCount}
-            cellFn={(dI, p) => idx[`${dI}-${p.id}`] || null}
-          />
+          <ScheduleGrid title={`Horario docente: ${teacher.name}`} modCount={modCount} cellFn={(dI, p) => idx[`${dI}-${p.id}`] || null}/>
         </div>
       );
     }
-
-    // ── Curso ─────────────────────────────────────────────────────────────
     if (reportType === 'course') {
       const course = courses.find(c => c.id === parseInt(reportSelection));
       if (!course) return null;
       return (
-        <ScheduleGrid
-          title={`Horario curso: ${course.name}`}
-          cellFn={(dI, p) => {
-            const cell    = schedule[`${dI}-${p.id}-${course.id}`];
-            if (!cell) return null;
-            const subj    = subjects.find(s => s.id === cell.subjectId);
-            const teacher = teachers.find(t => t.id === cell.teacherId);
-            return { top: subj?.name || '—', bottom: teacher?.name || '' };
-          }}
-        />
+        <ScheduleGrid title={`Horario curso: ${course.name}`} cellFn={(dI, p) => {
+          const cell    = schedule[`${dI}-${p.id}-${course.id}`];
+          if (!cell) return null;
+          const subj    = subjects.find(s => s.id === cell.subjectId);
+          const teacher = teachers.find(t => t.id === cell.teacherId);
+          return { top: subj?.name || '—', bottom: teacher?.name || '' };
+        }}/>
       );
     }
-
-    // ── Materia ───────────────────────────────────────────────────────────
     if (reportType === 'subject') {
       const subj = subjects.find(s => s.id === reportSelection);
       if (!subj) return null;
-
-      // Pre-index: {dayIdx-periodId → [{teacherName, courseName}]} (multiple courses same slot)
       const idx = {};
       Object.entries(schedule).forEach(([key, val]) => {
         if (val.subjectId !== reportSelection) return;
@@ -1358,19 +1132,16 @@ const t = { id:`t-${uid()}`, name, color: '', colorHex, subject:'' };
         if (!idx[slot]) idx[slot] = [];
         idx[slot].push(`${teacher?.name || '—'} (${course?.name || '—'})`);
       });
-
       return (
-        <ScheduleGrid
-          title={`Materia: ${subj.name}`}
-          cellFn={(dI, p) => {
-            const entries = idx[`${dI}-${p.id}`];
-            if (!entries || entries.length === 0) return null;
-            return { top: entries[0], bottom: entries.length > 1 ? `+${entries.length-1} más` : '' };
-          }}
-        />
+        <ScheduleGrid title={`Materia: ${subj.name}`} cellFn={(dI, p) => {
+          const entries = idx[`${dI}-${p.id}`];
+          if (!entries || entries.length === 0) return null;
+          return { top: entries[0], bottom: entries.length > 1 ? `+${entries.length-1} más` : '' };
+        }}/>
       );
     }
   };
+
 
   const tabs = [
     { id:'grid',     label:'Grilla',   icon:<Calendar size={13}/> },
@@ -1397,18 +1168,17 @@ const t = { id:`t-${uid()}`, name, color: '', colorHex, subject:'' };
           <div className="bg-indigo-600 p-1.5 rounded-lg"><Calendar className="text-white" size={16}/></div>
           <div>
             <h1 className="text-sm font-bold text-slate-900 leading-tight">Horaria</h1>
-            <CloudDot status={cloudStatus} firebase={!!fbConfig}/>
+            <CloudDot status={cloudStatus} fbStatus={fbConfig ? fbStatus : 'idle'}/>
           </div>
         </div>
-
         <div className="flex items-center gap-1.5 flex-wrap justify-end">
           {conflictPairs>0&&(
-  <button
-    onClick={()=>setActiveTab('grid')}
-    className="hidden sm:flex items-center gap-1 bg-red-50 text-red-600 px-2 py-1 rounded-lg border border-red-200 text-[10px] font-bold hover:bg-red-100 transition-colors cursor-pointer">
-    <AlertTriangle size={10}/>{conflictPairs} conflicto{conflictPairs!==1?'s':''}
-  </button>
-)}
+            <button
+              onClick={()=>setActiveTab('alerts')}
+              className="hidden sm:flex items-center gap-1 bg-red-50 text-red-600 px-2 py-1 rounded-lg border border-red-200 text-[10px] font-bold hover:bg-red-100 transition-colors cursor-pointer">
+              <AlertTriangle size={10}/>{conflictPairs} conflicto{conflictPairs!==1?'s':''}
+            </button>
+          )}
           {potentialDuplicates.length>0&&(
             <button onClick={()=>setActiveTab('subjects')}
               className="hidden sm:flex items-center gap-1 bg-amber-50 text-amber-600 px-2 py-1 rounded-lg border border-amber-100 text-[10px] font-bold hover:bg-amber-100 transition-colors">
@@ -1434,6 +1204,20 @@ const t = { id:`t-${uid()}`, name, color: '', colorHex, subject:'' };
         </div>
       </header>
 
+      {/* ── Firebase error banner — shown when connection fails ── */}
+      {fbConfig && fbStatus === 'error' && (
+        <div className="bg-red-600 text-white px-4 py-2.5 flex items-center justify-between gap-3 shadow-md">
+          <div className="flex items-center gap-2">
+            <WifiOff size={15} className="shrink-0"/>
+            <span className="text-sm font-bold">Sin conexión a Firebase — los cambios NO se están guardando en la nube.</span>
+          </div>
+          <button onClick={() => setActiveTab('config')}
+            className="text-xs font-black bg-white text-red-600 px-3 py-1 rounded-lg hover:bg-red-50 transition-colors shrink-0">
+            Ver config
+          </button>
+        </div>
+      )}
+
       {/* ── Toast ── */}
       {message&&(
         <div className={`fixed top-14 right-4 z-[100] px-4 py-3 rounded-xl shadow-lg text-white text-sm flex items-center gap-2
@@ -1448,22 +1232,17 @@ const t = { id:`t-${uid()}`, name, color: '', colorHex, subject:'' };
         {/* ══ GRILLA ══════════════════════════════════════════════════════════ */}
         {activeTab==='grid'&&(
           <div className="flex flex-col gap-3">
-            {/* Toolbar */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              {/* Day tabs */}
               <div className="flex border-b border-slate-100">
                 {DAYS.map((d,i)=>(
                   <button key={i} onClick={()=>setCurrentDay(i)}
                     className={`flex-1 py-2.5 text-xs font-black uppercase tracking-wide transition-all border-b-2
-                      ${i===currentDay
-                        ?'border-indigo-600 text-indigo-600 bg-indigo-50/60'
-                        :'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>
+                      ${i===currentDay?'border-indigo-600 text-indigo-600 bg-indigo-50/60':'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>
                     <span className="hidden sm:inline">{d}</span>
                     <span className="sm:hidden">{d.slice(0,3)}</span>
                   </button>
                 ))}
               </div>
-              {/* Search + undo/redo */}
               <div className="flex items-center gap-2 px-3 py-2">
                 <div className="relative flex-1 max-w-xs">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={12}/>
@@ -1474,16 +1253,12 @@ const t = { id:`t-${uid()}`, name, color: '', colorHex, subject:'' };
                 </div>
                 <div className="flex gap-1 ml-auto">
                   <button onClick={undo} disabled={historyIdx_s<=0} title="Deshacer (Ctrl+Z)"
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg border border-slate-200 text-slate-500
-                      hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-                    <Undo2 size={13}/>
-                    <span className="hidden sm:inline">Deshacer</span>
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                    <Undo2 size={13}/><span className="hidden sm:inline">Deshacer</span>
                   </button>
                   <button onClick={redo} disabled={historyIdx_s>=history.current.length-1} title="Rehacer (Ctrl+Y)"
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg border border-slate-200 text-slate-500
-                      hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-                    <Redo2 size={13}/>
-                    <span className="hidden sm:inline">Rehacer</span>
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                    <Redo2 size={13}/><span className="hidden sm:inline">Rehacer</span>
                   </button>
                 </div>
               </div>
@@ -1531,14 +1306,11 @@ const t = { id:`t-${uid()}`, name, color: '', colorHex, subject:'' };
                               const dimmed      = searchTerm&&!highlighted&&!!cell;
                               return (
                                 <td key={course.id}
-                                  className={`p-1.5 border-b border-r border-slate-100 cursor-pointer transition-colors
-                                    ${highlighted?'bg-yellow-50':'hover:bg-slate-50/60'}`}
+                                  className={`p-1.5 border-b border-r border-slate-100 cursor-pointer transition-colors ${highlighted?'bg-yellow-50':'hover:bg-slate-50/60'}`}
                                   onClick={()=>openCellEditor(period.id,course.id)}>
                                   {cell?(
-                                    <div className={`rounded-lg p-2 border h-full transition-all
-                                      ${dimmed?'opacity-20':''}
-                                      ${hasConflict?'border-red-300 bg-red-50 text-red-700':'border-slate-200'}`}
-style={!hasConflict && teacher?.colorHex ? {backgroundColor: teacher.colorHex + '22', borderColor: teacher.colorHex, color: teacher.colorHex} : {}}>
+                                    <div className={`rounded-lg p-2 border h-full transition-all ${dimmed?'opacity-20':''} ${hasConflict?'border-red-300 bg-red-50 text-red-700':'border-slate-200'}`}
+                                      style={!hasConflict && teacher?.colorHex ? teacherStyle(teacher.colorHex) : {}}>
                                       <div className="text-[10px] font-bold leading-snug truncate">{subject?.name??<span className="italic text-slate-400">Sin materia</span>}</div>
                                       <div className="text-[8px] opacity-70 font-bold uppercase truncate mt-0.5">{teacher?.name??<span className="text-slate-300">Sin docente</span>}</div>
                                       {hasConflict&&<div className="flex items-center gap-0.5 mt-1"><AlertTriangle size={8} className="text-red-500 shrink-0"/><span className="text-[8px] text-red-500 font-bold">Conflicto</span></div>}
@@ -1564,82 +1336,47 @@ style={!hasConflict && teacher?.colorHex ? {backgroundColor: teacher.colorHex + 
               <ConflictPanel
                 conflicts={conflictList}
                 onNavigate={(dayIdx) => setCurrentDay(dayIdx)}
-                onEdit={(dayIdx, periodId, courseId) => {
-                  setCurrentDay(dayIdx);
-                  openCellEditor(periodId, courseId);
-                }}
+                onEdit={(dayIdx, periodId, courseId) => { setCurrentDay(dayIdx); openCellEditor(periodId, courseId); }}
               />
             )}
           </div>
         )}
 
-        {/* ══ PLANTEL & MATERIAS — unified EntityList ═══════════════════════════ */}
+
+        {/* ══ PLANTEL & MATERIAS ══════════════════════════════════════════════ */}
         {(activeTab==='teachers'||activeTab==='subjects')&&(()=>{
           const isTeachers = activeTab==='teachers';
-
-          // ── data ──────────────────────────────────────────────────────────
           const items = isTeachers
-            ? [...teachers]
-                .sort((a,b)=>a.name.localeCompare(b.name,'es'))
-                .map(t=>({
-                  id:       t.id,
-                  name:     t.name,
-                  subtitle: t.subject||'Sin materias asignadas',
-                  badge:    `${Object.values(schedule).filter(v=>v.teacherId===t.id).length} mód. sem.`,
-                  avatar:   t.name.charAt(0).toUpperCase(),
-                  color:    t.color,
-                  isDupe:   false,
-                }))
+            ? [...teachers].sort((a,b)=>a.name.localeCompare(b.name,'es')).map(t=>({
+                id: t.id, name: t.name, subtitle: t.subject||'Sin materias asignadas',
+                badge: `${Object.values(schedule).filter(v=>v.teacherId===t.id).length} mód. sem.`,
+                avatar: t.name.charAt(0).toUpperCase(), colorHex: t.colorHex, isDupe: false,
+              }))
             : sortedSubjects.map(s=>({
-                id:       s.id,
-                name:     s.name,
-                subtitle: null,
-                badge:    `${subjectUsage.get(s.id)??0} uso${(subjectUsage.get(s.id)??0)!==1?'s':''}`,
-                avatar:   s.name.charAt(0).toUpperCase(),
-                color:    'bg-slate-100 text-slate-600 border-slate-200',
-                isDupe:   potentialDuplicates.some(g=>g.find(x=>x.id===s.id)),
+                id: s.id, name: s.name, subtitle: null,
+                badge: `${subjectUsage.get(s.id)??0} uso${(subjectUsage.get(s.id)??0)!==1?'s':''}`,
+                avatar: s.name.charAt(0).toUpperCase(), colorHex: null,
+                isDupe: potentialDuplicates.some(g=>g.find(x=>x.id===s.id)),
               }));
 
-          const filtered = listSearch.trim()
-            ? items.filter(it=>ns(it.name).includes(ns(listSearch)))
-            : items;
+          const filtered = listSearch.trim() ? items.filter(it=>ns(it.name).includes(ns(listSearch))) : items;
+          const allIds   = new Set(filtered.map(it=>it.id));
+          const selCount = [...selectedItems].filter(id=>allIds.has(id)).length;
+          const allSel   = filtered.length>0 && selCount===filtered.length;
 
-          const allIds    = new Set(filtered.map(it=>it.id));
-          const selCount  = [...selectedItems].filter(id=>allIds.has(id)).length;
-          const allSel    = filtered.length>0 && selCount===filtered.length;
-
-          const toggleItem = id => setSelectedItems(prev=>{
-            const next=new Set(prev);
-            next.has(id)?next.delete(id):next.add(id);
-            return next;
-          });
-          const toggleAll = () => setSelectedItems(prev=>{
-            if(allSel){ const next=new Set(prev); filtered.forEach(it=>next.delete(it.id)); return next; }
-            return new Set([...prev,...filtered.map(it=>it.id)]);
-          });
-
-          // open merge modal with selected items
-          const openMergeModal = () => {
-            const sel = filtered.filter(it=>selectedItems.has(it.id));
-            if(sel.length<2) return; // button is disabled, this is a safeguard
-            setMergeKeepId(sel[0].id);
-            setMergeModal({ items: sel, isTeachers });
-          };
-
-          // bulk delete
+          const toggleItem = id => setSelectedItems(prev=>{ const next=new Set(prev); next.has(id)?next.delete(id):next.add(id); return next; });
+          const toggleAll  = () => setSelectedItems(prev=>{ if(allSel){const next=new Set(prev);filtered.forEach(it=>next.delete(it.id));return next;} return new Set([...prev,...filtered.map(it=>it.id)]); });
+          const openMergeModal = () => { const sel=filtered.filter(it=>selectedItems.has(it.id)); if(sel.length<2)return; setMergeKeepId(sel[0].id); setMergeModal({items:sel,isTeachers}); };
           const bulkDelete = () => {
-            const sel = filtered.filter(it=>selectedItems.has(it.id));
-            if(!sel.length)return;
+            const sel=filtered.filter(it=>selectedItems.has(it.id)); if(!sel.length)return;
             if(!window.confirm(`¿Eliminar ${sel.length} elemento${sel.length!==1?'s':''}? Esta acción no se puede deshacer.`))return;
-            sel.forEach(it=>isTeachers?deleteTeacher(it.id):deleteSubject(it.id));
-            setSelectedItems(new Set());
+            sel.forEach(it=>isTeachers?deleteTeacher(it.id):deleteSubject(it.id)); setSelectedItems(new Set());
           };
-
           const hasSel = selCount>0;
 
           return(
             <div className="space-y-3">
-              {/* ── header ── */}
+              {/* header */}
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <h2 className="text-xl font-black text-slate-800">
                   {isTeachers?'Plantel Docente':'Materias'}
@@ -1654,17 +1391,17 @@ style={!hasConflict && teacher?.colorHex ? {backgroundColor: teacher.colorHex + 
                 </button>
               </div>
 
-              {/* ── duplicate alert (subjects only) ── */}
+              {/* duplicate alert */}
               {!isTeachers&&potentialDuplicates.length>0&&(
                 <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center gap-3">
                   <AlertTriangle size={14} className="text-amber-500 shrink-0"/>
                   <p className="text-xs text-amber-800 font-bold">
-                    {potentialDuplicates.length} posible{potentialDuplicates.length!==1?'s duplicados':' duplicado'} detectado{potentialDuplicates.length!==1?'s':''} — marcados con <span className="text-amber-500">⚠</span>. Seleccionalos y usá <strong>Unificar selección</strong>.
+                    {potentialDuplicates.length} posible{potentialDuplicates.length!==1?'s duplicados':' duplicado'} — marcados con <span className="text-amber-500">⚠</span>. Seleccionalos y usá <strong>Unificar selección</strong>.
                   </p>
                 </div>
               )}
 
-              {/* ── toolbar: search + bulk actions ── */}
+              {/* toolbar */}
               <div className="flex items-center gap-2 flex-wrap">
                 <div className="relative flex-1 min-w-[160px] max-w-xs">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13}/>
@@ -1676,23 +1413,19 @@ style={!hasConflict && teacher?.colorHex ? {backgroundColor: teacher.colorHex + 
                   <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-1.5">
                     <span className="text-xs font-black text-indigo-600">{selCount} seleccionado{selCount!==1?'s':''}</span>
                     <button onClick={openMergeModal} disabled={selCount<2}
-                      className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg transition-colors
-                        ${selCount>=2?'text-indigo-700 bg-indigo-100 hover:bg-indigo-200 cursor-pointer':'text-slate-400 bg-slate-100 cursor-not-allowed opacity-60'}`}>
+                      className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg transition-colors ${selCount>=2?'text-indigo-700 bg-indigo-100 hover:bg-indigo-200 cursor-pointer':'text-slate-400 bg-slate-100 cursor-not-allowed opacity-60'}`}>
                       <Merge size={11}/>Unificar selección
                     </button>
                     <button onClick={bulkDelete}
                       className="flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-lg transition-colors">
                       <Trash2 size={11}/>Eliminar
                     </button>
-                    <button onClick={()=>setSelectedItems(new Set())}
-                      className="text-slate-400 hover:text-slate-600 transition-colors ml-1">
-                      <X size={13}/>
-                    </button>
+                    <button onClick={()=>setSelectedItems(new Set())} className="text-slate-400 hover:text-slate-600 transition-colors ml-1"><X size={13}/></button>
                   </div>
                 )}
               </div>
 
-              {/* ── list ── */}
+              {/* list */}
               {filtered.length===0?(
                 <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
                   {isTeachers?<Users size={36} className="text-slate-200 mx-auto mb-3"/>:<BookOpen size={36} className="text-slate-200 mx-auto mb-3"/>}
@@ -1700,54 +1433,52 @@ style={!hasConflict && teacher?.colorHex ? {backgroundColor: teacher.colorHex + 
                 </div>
               ):(
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                  {/* select-all row */}
+                  {/* select-all */}
                   <div className="flex items-center gap-3 px-4 py-2 border-b border-slate-100 bg-slate-50/60">
-                    <input type="checkbox" checked={allSel} onChange={toggleAll}
-                      className="w-4 h-4 rounded accent-indigo-600 cursor-pointer"/>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wide">
-                      {allSel?'Deseleccionar todo':'Seleccionar todo'}
-                    </span>
+                    <input type="checkbox" checked={allSel} onChange={toggleAll} className="w-4 h-4 rounded accent-indigo-600 cursor-pointer"/>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wide">{allSel?'Deseleccionar todo':'Seleccionar todo'}</span>
                   </div>
 
                   {filtered.map(item=>{
-                    const isSel=selectedItems.has(item.id);
+                    const isSel = selectedItems.has(item.id);
+                    const modCount = isTeachers ? parseInt(item.badge) : null;
                     return(
                       <div key={item.id}
                         className={`flex items-center gap-3 px-4 py-3 border-b border-slate-100 last:border-0 transition-colors
                           ${isSel?'bg-indigo-50/60':item.isDupe?'bg-amber-50/30':'hover:bg-slate-50/60'}`}>
 
-                        {/* checkbox */}
                         <input type="checkbox" checked={isSel} onChange={()=>toggleItem(item.id)}
                           className="w-4 h-4 rounded accent-indigo-600 cursor-pointer shrink-0"/>
 
-                        {/* avatar */}
-                        <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border text-xs font-black text-white"
-  style={{backgroundColor: item.colorHex || '#6366f1', borderColor: item.colorHex || '#6366f1'}}>
+                        {/* avatar with color */}
+                        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border text-sm font-black text-white"
+                          style={item.colorHex ? teacherAvatarStyle(item.colorHex) : {backgroundColor:'#e2e8f0', borderColor:'#cbd5e1', color:'#64748b'}}>
                           {item.avatar}
                         </div>
 
-                        {/* name + subtitle */}
+                        {/* name + subtitle — takes full remaining width */}
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             {item.isDupe&&<AlertTriangle size={11} className="text-amber-400 shrink-0"/>}
                             <span className="font-bold text-slate-800 text-sm truncate">{item.name}</span>
+                            {/* badge inline */}
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${parseInt(item.badge)===0||item.badge.startsWith('0')?'bg-slate-100 text-slate-400':'bg-indigo-50 text-indigo-600'}`}>
+                              {item.badge}
+                            </span>
                           </div>
-                          {item.subtitle&&<p className="text-[10px] text-slate-400 font-bold truncate mt-0.5">{item.subtitle}</p>}
+                          {item.subtitle&&<p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">{item.subtitle}</p>}
                         </div>
 
-                        {/* badge */}
-                        <Badge color={item.badge.startsWith('0')?'slate':'indigo'}>{item.badge}</Badge>
-
-                        {/* actions */}
+                        {/* actions — compact, right-aligned */}
                         <div className="flex gap-1 shrink-0">
                           <button
                             onClick={()=>isTeachers?setEditingTeacher({...teachers.find(t=>t.id===item.id)}):setEditingSubject({...subjects.find(s=>s.id===item.id)})}
-                            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors">
+                            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors" title="Editar">
                             <Edit2 size={15}/>
                           </button>
                           <button
                             onClick={()=>{if(window.confirm(`¿Eliminar "${item.name}"?`))isTeachers?deleteTeacher(item.id):deleteSubject(item.id);}}
-                            className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500 transition-colors">
+                            className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500 transition-colors" title="Eliminar">
                             <Trash2 size={15}/>
                           </button>
                         </div>
@@ -1759,6 +1490,7 @@ style={!hasConflict && teacher?.colorHex ? {backgroundColor: teacher.colorHex + 
             </div>
           );
         })()}
+
 
         {/* ══ REPORTES ════════════════════════════════════════════════════════ */}
         {activeTab==='reports'&&(
@@ -1800,19 +1532,10 @@ style={!hasConflict && teacher?.colorHex ? {backgroundColor: teacher.colorHex + 
                   </div>
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-1">
                     <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Formato esperado</p>
-                    {[
-                      'LUNES,1A,1B,1C,1D',
-                      '1,Matemática,Lengua,Historia,Biología',
-                      ',García Juan,López María,Pérez Ana,Torres Luis',
-                      '2,Física,Matemática,Arte,Química',
-                      ',Romero Pedro,García Juan,Díaz Rosa,Vega Omar',
-                      '… (repetir para cada día)',
-                    ].map((line,i)=>(
+                    {['LUNES,1A,1B,1C,1D','1,Matemática,Lengua,Historia,Biología',',García Juan,López María,Pérez Ana,Torres Luis','2,Física,Matemática,Arte,Química',',Romero Pedro,García Juan,Díaz Rosa,Vega Omar','… (repetir para cada día)'].map((line,i)=>(
                       <div key={i} className={`text-xs font-mono ${line.startsWith('…')?'text-slate-400 italic':'text-slate-600'}`}>{line}</div>
                     ))}
-                    <p className="text-[10px] text-slate-400 mt-2 pt-2 border-t border-slate-200">
-                      La fila de docentes debe empezar con una coma. El sistema también acepta filas sin coma inicial.
-                    </p>
+                    <p className="text-[10px] text-slate-400 mt-2 pt-2 border-t border-slate-200">La fila de docentes debe empezar con una coma.</p>
                   </div>
                   <textarea value={csvContent} onChange={e=>setCsvContent(e.target.value)}
                     placeholder="Pegá aquí el contenido CSV…"
@@ -1832,14 +1555,8 @@ style={!hasConflict && teacher?.colorHex ? {backgroundColor: teacher.colorHex + 
                 </div>
               </div>
             )}
-
             {importStep==='preview'&&parsedPreview&&(
-              <ImportPreview
-                parsedPairs={parsedPreview.parsedPairs}
-                courses={parsedPreview.detectedCourses}
-                onConfirm={handleConfirmImport}
-                onBack={()=>setImportStep('input')}
-              />
+              <ImportPreview parsedPairs={parsedPreview.parsedPairs} courses={parsedPreview.detectedCourses} onConfirm={handleConfirmImport} onBack={()=>setImportStep('input')}/>
             )}
           </>
         )}
@@ -1854,38 +1571,53 @@ style={!hasConflict && teacher?.colorHex ? {backgroundColor: teacher.colorHex + 
               </div>
             </div>
             <AlertsPanel
-  report={lastReport}
-  conflictList={conflictList}
-  onGoToConflict={(c) => {
-    setSearchTerm(c.teacher?.name || '');
-    setCurrentDay(c.dayIdx);
-    setActiveTab('grid');
-  }}
-/>
+              report={lastReport}
+              conflictList={conflictList}
+              onGoToConflict={(c) => {
+                setSearchTerm(c.teacher?.name || '');
+                setCurrentDay(c.dayIdx);
+                setActiveTab('grid');
+              }}
+            />
           </div>
         )}
 
-        {/* ══ CONFIG — Firebase ════════════════════════════════════════════════ */}
+        {/* ══ CONFIG ══════════════════════════════════════════════════════════ */}
         {activeTab==='config'&&(
           <div className="max-w-2xl mx-auto space-y-5">
             <h2 className="text-xl font-black text-slate-800">Configuración de base de datos</h2>
-
-            {/* Current status card */}
-            <div className={`rounded-2xl border p-5 flex items-center gap-4 ${fbConfig?'bg-emerald-50 border-emerald-200':'bg-slate-50 border-slate-200'}`}>
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${fbConfig?'bg-emerald-100':'bg-slate-200'}`}>
+            <div className={`rounded-2xl border p-5 flex items-center gap-4 ${
+              fbConfig
+                ? fbStatus==='connected' ? 'bg-emerald-50 border-emerald-200'
+                : fbStatus==='error'     ? 'bg-red-50 border-red-300'
+                : 'bg-amber-50 border-amber-200'
+              : 'bg-slate-50 border-slate-200'}`}>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                fbConfig
+                  ? fbStatus==='connected' ? 'bg-emerald-100'
+                  : fbStatus==='error'     ? 'bg-red-100'
+                  : 'bg-amber-100'
+                : 'bg-slate-200'}`}>
                 {fbConfig
-                  ? <Database size={20} className="text-emerald-600"/>
-                  : <WifiOff  size={20} className="text-slate-400"/>
+                  ? fbStatus==='connected' ? <Database size={20} className="text-emerald-600"/>
+                  : fbStatus==='error'     ? <WifiOff  size={20} className="text-red-500"/>
+                  : <Database size={20} className="text-amber-500"/>
+                  : <WifiOff size={20} className="text-slate-400"/>
                 }
               </div>
               <div className="flex-1">
-                <p className="font-black text-sm text-slate-800">
-                  {fbConfig ? 'Conectado a Firebase' : 'Sin Firebase — usando almacenamiento local'}
+                <p className={`font-black text-sm ${fbConfig && fbStatus==='error' ? 'text-red-700' : 'text-slate-800'}`}>
+                  {!fbConfig
+                    ? 'Sin Firebase — usando almacenamiento local'
+                    : fbStatus==='connected'  ? 'Conectado a Firebase'
+                    : fbStatus==='connecting' ? 'Conectando a Firebase…'
+                    : fbStatus==='error'      ? '⚠ Error de conexión — revisá las reglas de Firestore'
+                    : 'Firebase configurado'}
                 </p>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                <p className={`text-xs font-medium mt-0.5 ${fbConfig && fbStatus==='error' ? 'text-red-500' : 'text-slate-500'}`}>
                   {fbConfig
-                    ? `Proyecto: ${fbConfig.projectId} · Estado: ${fbStatus}`
-                    : 'Los datos solo se guardan en tu navegador. Si compartís la app, la otra persona verá datos vacíos.'}
+                    ? `Proyecto: ${fbConfig.projectId}${fbStatus==='error' ? ' · Causa probable: reglas de Firestore no permiten acceso anónimo' : ''}`
+                    : 'Los datos solo se guardan en tu navegador.'}
                 </p>
               </div>
               {fbConfig&&(
@@ -1910,7 +1642,6 @@ style={!hasConflict && teacher?.colorHex ? {backgroundColor: teacher.colorHex + 
                     Limpiar todo
                   </button>
                 </div>
-
                 {[['teachers','Docentes'],['subjects','Materias']].map(([type, label]) => {
                   const entries = Object.entries(mappings[type] || {});
                   if (!entries.length) return null;
@@ -1924,15 +1655,8 @@ style={!hasConflict && teacher?.colorHex ? {backgroundColor: teacher.colorHex + 
                             <ArrowRight size={11} className="text-slate-300 shrink-0"/>
                             <span className="text-xs font-bold text-slate-800 flex-1 truncate">{to}</span>
                             <button
-                              onClick={() => {
-                                const newMaps = { ...mappings, [type]: { ...mappings[type] } };
-                                delete newMaps[type][from];
-                                setMappings(newMaps);
-                                saveAll(courses, teachers, subjects, schedule, lastReport, newMaps);
-                              }}
-                              className="text-slate-300 hover:text-red-400 transition-colors shrink-0 ml-1">
-                              <X size={13}/>
-                            </button>
+                              onClick={() => { const newMaps={...mappings,[type]:{...mappings[type]}}; delete newMaps[type][from]; setMappings(newMaps); saveAll(courses,teachers,subjects,schedule,lastReport,newMaps); }}
+                              className="text-slate-300 hover:text-red-400 transition-colors shrink-0 ml-1"><X size={13}/></button>
                           </div>
                         ))}
                       </div>
@@ -1942,70 +1666,37 @@ style={!hasConflict && teacher?.colorHex ? {backgroundColor: teacher.colorHex + 
               </div>
             )}
 
-            {/* Step by step guide */}
+            {/* Guide */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
               <div>
                 <h3 className="font-black text-slate-800 text-base">Cómo conectar Firebase (gratis)</h3>
-                <p className="text-sm text-slate-500 mt-1">Seguí estos pasos. Una vez configurado, todos los que usen esta app verán y editarán los mismos datos en tiempo real.</p>
+                <p className="text-sm text-slate-500 mt-1">Una vez configurado, todos los que usen esta app verán y editarán los mismos datos en tiempo real.</p>
               </div>
-
               {[
-                {
-                  n:1,
-                  title:'Crear cuenta y proyecto en Firebase',
-                  body:'Entrá a firebase.google.com y hacé click en "Comenzar". Iniciá sesión con una cuenta Google. Luego "Crear un proyecto", dale un nombre (ej: "horario-colegio") y completá el asistente.',
-                  link:'https://firebase.google.com',
-                  linkLabel:'Ir a Firebase →'
-                },
-                {
-                  n:2,
-                  title:'Registrar una app web',
-                  body:'Dentro del proyecto, hacé click en el ícono </> (Web). Dale un nombre (ej: "masterschedule") y hacé click en "Registrar app". NO es necesario activar Firebase Hosting.',
-                },
-                {
-                  n:3,
-                  title:'Copiar la configuración',
-                  body:'Después de registrar la app, Firebase te muestra un bloque de código con "firebaseConfig". Copiá ese objeto completo — tiene apiKey, authDomain, projectId, etc.',
-                },
-                {
-                  n:4,
-                  title:'Configurar Firestore',
-                  body:'En el menú izquierdo del proyecto, andá a Build → Firestore Database → "Crear base de datos". Elegí "Empezar en modo de prueba" y cualquier ubicación. Esto activa la base de datos.',
-                },
-                {
-                  n:5,
-                  title:'Pegar la configuración aquí abajo y conectar',
-                  body:'Pegá el objeto firebaseConfig en el campo de abajo y hacé click en Conectar. Listo — tus datos quedan en la nube y cualquier persona con esta app y la misma configuración los puede ver.',
-                },
+                {n:1,title:'Crear cuenta y proyecto en Firebase',body:'Entrá a firebase.google.com y hacé click en "Comenzar". Iniciá sesión con una cuenta Google. Luego "Crear un proyecto", dale un nombre y completá el asistente.',link:'https://firebase.google.com',linkLabel:'Ir a Firebase →'},
+                {n:2,title:'Registrar una app web',body:'Dentro del proyecto, hacé click en el ícono </> (Web). Dale un nombre y hacé click en "Registrar app". NO es necesario activar Firebase Hosting.'},
+                {n:3,title:'Copiar la configuración',body:'Después de registrar la app, Firebase te muestra un bloque de código con "firebaseConfig". Copiá ese objeto completo.'},
+                {n:4,title:'Configurar Firestore',body:'En el menú izquierdo del proyecto, andá a Build → Firestore Database → "Crear base de datos". Elegí "Empezar en modo de prueba" y cualquier ubicación.'},
+                {n:5,title:'Pegar la configuración aquí abajo y conectar',body:'Pegá el objeto firebaseConfig en el campo de abajo y hacé click en Conectar.'},
               ].map(step=>(
                 <div key={step.n} className="flex gap-4">
                   <div className="w-7 h-7 rounded-full bg-indigo-600 text-white text-xs font-black flex items-center justify-center shrink-0 mt-0.5">{step.n}</div>
                   <div className="flex-1">
                     <p className="font-bold text-slate-800 text-sm">{step.title}</p>
                     <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{step.body}</p>
-                    {step.link&&(
-                      <a href={step.link} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-indigo-600 font-bold mt-1 hover:underline">
-                        {step.linkLabel}<ExternalLink size={10}/>
-                      </a>
-                    )}
+                    {step.link&&(<a href={step.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-indigo-600 font-bold mt-1 hover:underline">{step.linkLabel}<ExternalLink size={10}/></a>)}
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* Config paste area */}
+            {/* Config paste */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
               <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wide block mb-1.5">
-                  Pegá tu firebaseConfig aquí
-                </label>
-                <textarea
-                  value={fbConfigText}
-                  onChange={e=>{setFbConfigText(e.target.value);setFbConfigErr('');}}
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wide block mb-1.5">Pegá tu firebaseConfig aquí</label>
+                <textarea value={fbConfigText} onChange={e=>{setFbConfigText(e.target.value);setFbConfigErr('');}}
                   placeholder={`{\n  "apiKey": "AIza...",\n  "authDomain": "tu-proyecto.firebaseapp.com",\n  "projectId": "tu-proyecto",\n  "storageBucket": "tu-proyecto.appspot.com",\n  "messagingSenderId": "123456789",\n  "appId": "1:123...:web:abc..."\n}`}
-                  className="w-full h-52 text-xs font-mono border border-slate-200 rounded-xl p-4 outline-none focus:ring-2 ring-indigo-100 resize-none bg-slate-50 text-slate-700 placeholder-slate-300"
-                />
+                  className="w-full h-52 text-xs font-mono border border-slate-200 rounded-xl p-4 outline-none focus:ring-2 ring-indigo-100 resize-none bg-slate-50 text-slate-700 placeholder-slate-300"/>
                 {fbConfigErr&&(
                   <div className="mt-2 flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
                     <AlertCircle size={13} className="text-red-500 shrink-0 mt-0.5"/>
@@ -2013,23 +1704,22 @@ style={!hasConflict && teacher?.colorHex ? {backgroundColor: teacher.colorHex + 
                   </div>
                 )}
               </div>
+              <div className="flex items-start gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
+                <ShieldCheck size={13} className="text-slate-400 shrink-0 mt-0.5"/>
+                <p className="text-[10px] text-slate-500 font-medium leading-relaxed">Tu configuración se guarda localmente en este navegador. Nunca se envía a ningún servidor externo al de Firebase que vos mismo configuraste.</p>
+              </div>
               <div className="flex gap-3">
                 <button onClick={handleConnectFirebase} disabled={!fbConfigText.trim()}
                   className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
                   <Database size={15}/>Conectar a Firebase
                 </button>
               </div>
-              <div className="flex items-start gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
-                <ShieldCheck size={13} className="text-slate-400 shrink-0 mt-0.5"/>
-                <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
-                  Tu configuración se guarda localmente en este navegador. Nunca se envía a ningún servidor externo al de Firebase que vos mismo configuraste.
-                </p>
-              </div>
             </div>
           </div>
         )}
 
       </main>
+
 
       {/* ══ MODAL: Editar celda ════════════════════════════════════════════════ */}
       {editingCell&&(
@@ -2082,26 +1772,24 @@ style={!hasConflict && teacher?.colorHex ? {backgroundColor: teacher.colorHex + 
                 placeholder="Apellido, Nombre" className="w-full text-sm border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 ring-indigo-100"/>
             </div>
             <div>
-  <label className="text-[10px] font-black text-slate-500 uppercase block mb-2">Color</label>
-  <div className="flex items-center gap-3">
-    <input
-      type="color"
-      value={editingTeacher.colorHex || '#6366f1'}
-      onChange={e => setEditingTeacher(p => ({
-        ...p,
-        colorHex: e.target.value,
-        color: `bg-[${e.target.value}] text-white border-[${e.target.value}]`
-      }))}
-      className="w-10 h-10 rounded-lg border border-slate-200 cursor-pointer p-0.5"
-    />
-    <div
-      className="w-10 h-10 rounded-lg border-2 border-slate-300 flex items-center justify-center text-sm font-black text-white shadow-sm"
-      style={{backgroundColor: editingTeacher.colorHex || '#6366f1'}}>
-      {editingTeacher.name?.charAt(0)?.toUpperCase() || '?'}
-    </div>
-    <span className="text-xs text-slate-400 font-mono">{editingTeacher.colorHex || '#6366f1'}</span>
-  </div>
-</div>
+              <label className="text-[10px] font-black text-slate-500 uppercase block mb-2">Color</label>
+              <div className="flex items-center gap-4">
+                <input
+                  type="color"
+                  value={editingTeacher.colorHex || '#6366f1'}
+                  onChange={e=>setEditingTeacher(p=>({...p, colorHex: e.target.value, color: ''}))}
+                  className="w-12 h-12 rounded-xl border-2 border-slate-200 cursor-pointer p-0.5 hover:border-slate-400 transition-colors"
+                />
+                <div className="w-12 h-12 rounded-xl border-2 flex items-center justify-center text-lg font-black text-white shadow-sm"
+                  style={{backgroundColor: editingTeacher.colorHex || '#6366f1', borderColor: editingTeacher.colorHex || '#6366f1'}}>
+                  {editingTeacher.name?.charAt(0)?.toUpperCase() || '?'}
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-700">{editingTeacher.name || 'Docente'}</p>
+                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">{editingTeacher.colorHex || '#6366f1'}</p>
+                </div>
+              </div>
+            </div>
             <button onClick={()=>{if(editingTeacher.name.trim())saveTeacher(editingTeacher);}} disabled={!editingTeacher.name.trim()}
               className="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700 disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
               <Check size={13}/>Guardar Docente
@@ -2135,25 +1823,20 @@ style={!hasConflict && teacher?.colorHex ? {backgroundColor: teacher.colorHex + 
         </div>
       )}
 
-      {/* ══ MODAL: Unificar (docentes y materias) ═══════════════════════════════ */}
+      {/* ══ MODAL: Unificar ═════════════════════════════════════════════════════ */}
       {mergeModal&&(
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center p-4"
           onClick={e=>e.target===e.currentTarget&&setMergeModal(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-5">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-black text-slate-800 text-base">
-                  Unificar {mergeModal.isTeachers?'docentes':'materias'}
-                </h3>
+                <h3 className="font-black text-slate-800 text-base">Unificar {mergeModal.isTeachers?'docentes':'materias'}</h3>
                 <p className="text-xs text-slate-400 font-medium mt-0.5">{mergeModal.items.length} elementos seleccionados</p>
               </div>
               <button onClick={()=>setMergeModal(null)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400"><X size={16}/></button>
             </div>
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-              <p className="text-xs text-amber-800 font-medium">
-                Elegí el nombre que querés <strong>conservar</strong>. Los demás quedarán eliminados
-                y todas sus asignaciones en el horario se reasignarán automáticamente al que elijas.
-              </p>
+              <p className="text-xs text-amber-800 font-medium">Elegí el nombre que querés <strong>conservar</strong>. Los demás quedarán eliminados y todas sus asignaciones se reasignarán automáticamente.</p>
             </div>
             <div>
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-wide mb-2">¿Cuál nombre conservar?</p>
@@ -2162,9 +1845,7 @@ style={!hasConflict && teacher?.colorHex ? {backgroundColor: teacher.colorHex + 
                   <label key={it.id}
                     className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all
                       ${mergeKeepId===it.id?'border-indigo-500 bg-indigo-50':'border-slate-200 hover:border-slate-300 bg-white'}`}>
-                    <input type="radio" name="mergeKeepId" value={it.id} checked={mergeKeepId===it.id}
-                      onChange={()=>setMergeKeepId(it.id)}
-                      className="accent-indigo-600 w-4 h-4 shrink-0"/>
+                    <input type="radio" name="mergeKeepId" value={it.id} checked={mergeKeepId===it.id} onChange={()=>setMergeKeepId(it.id)} className="accent-indigo-600 w-4 h-4 shrink-0"/>
                     <div className="flex-1 min-w-0">
                       <span className="font-bold text-slate-800 text-sm block truncate">{it.name}</span>
                       {it.subtitle&&<span className="text-[10px] text-slate-400 font-medium block truncate">{it.subtitle}</span>}
@@ -2183,8 +1864,7 @@ style={!hasConflict && teacher?.colorHex ? {backgroundColor: teacher.colorHex + 
                   const keep = mergeKeepId;
                   const remove = mergeModal.items.filter(it=>it.id!==keep);
                   remove.forEach(r=>mergeModal.isTeachers?mergeTeachers(keep,r.id):mergeSubjects(keep,r.id));
-                  setMergeModal(null);
-                  setSelectedItems(new Set());
+                  setMergeModal(null); setSelectedItems(new Set());
                 }}
                 className="flex-[2] bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">
                 <Merge size={14}/>Confirmar unificación
