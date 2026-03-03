@@ -11,27 +11,29 @@ import {
 // ─── Constants ────────────────────────────────────────────────────────────────
 const DAYS = ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES'];
 const COLORS = [
-  'bg-blue-50 text-blue-700 border-blue-200',
-  'bg-emerald-50 text-emerald-700 border-emerald-200',
-  'bg-violet-50 text-violet-700 border-violet-200',
-  'bg-amber-50 text-amber-700 border-amber-200',
-  'bg-rose-50 text-rose-700 border-rose-200',
-  'bg-cyan-50 text-cyan-700 border-cyan-200',
-  'bg-indigo-50 text-indigo-700 border-indigo-200',
-  'bg-orange-50 text-orange-700 border-orange-200',
-  'bg-teal-50 text-teal-700 border-teal-200',
-  'bg-pink-50 text-pink-700 border-pink-200',
-  'bg-lime-50 text-lime-700 border-lime-200',
-  'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200',
-  'bg-purple-50 text-purple-700 border-purple-200',
-  'bg-yellow-50 text-yellow-700 border-yellow-300',
-  'bg-sky-50 text-sky-700 border-sky-200',
-  'bg-slate-100 text-slate-700 border-slate-300',
-  'bg-emerald-100 text-emerald-800 border-emerald-300',
-  'bg-rose-100 text-rose-800 border-rose-300',
-  'bg-indigo-100 text-indigo-800 border-indigo-300',
-  'bg-orange-100 text-orange-800 border-orange-300'
+  'bg-blue-200 text-blue-800 border-blue-400',
+  'bg-emerald-200 text-emerald-800 border-emerald-400',
+  'bg-violet-200 text-violet-800 border-violet-400',
+  'bg-amber-200 text-amber-800 border-amber-400',
+  'bg-rose-200 text-rose-800 border-rose-400',
+  'bg-cyan-200 text-cyan-800 border-cyan-400',
+  'bg-indigo-200 text-indigo-800 border-indigo-400',
+  'bg-orange-200 text-orange-800 border-orange-400',
+  'bg-teal-200 text-teal-800 border-teal-400',
+  'bg-pink-200 text-pink-800 border-pink-400',
+  'bg-lime-200 text-lime-800 border-lime-400',
+  'bg-fuchsia-200 text-fuchsia-800 border-fuchsia-400',
+  'bg-purple-200 text-purple-800 border-purple-400',
+  'bg-yellow-200 text-yellow-800 border-yellow-400',
+  'bg-sky-200 text-sky-800 border-sky-400',
+  'bg-slate-200 text-slate-800 border-slate-400',
+  'bg-emerald-300 text-emerald-900 border-emerald-500',
+  'bg-rose-300 text-rose-900 border-rose-500',
+  'bg-indigo-300 text-indigo-900 border-indigo-500',
+  'bg-orange-300 text-orange-900 border-orange-500',
+  'bg-blue-300 text-blue-900 border-blue-500',
 ];
+
 const FIXED_PERIODS = [
   { id:1,  start:'07:20', end:'08:20', type:'class', mod:1 },
   { id:2,  start:'08:20', end:'09:20', type:'class', mod:2 },
@@ -1365,10 +1367,12 @@ export default function App() {
 
         <div className="flex items-center gap-1.5 flex-wrap justify-end">
           {conflictPairs>0&&(
-            <div className="hidden sm:flex items-center gap-1 bg-red-50 text-red-600 px-2 py-1 rounded-lg border border-red-100 text-[10px] font-bold">
-              <AlertTriangle size={10}/>{conflictPairs} conflicto{conflictPairs!==1?'s':''}
-            </div>
-          )}
+  <button
+    onClick={()=>setActiveTab('grid')}
+    className="hidden sm:flex items-center gap-1 bg-red-50 text-red-600 px-2 py-1 rounded-lg border border-red-200 text-[10px] font-bold hover:bg-red-100 transition-colors cursor-pointer">
+    <AlertTriangle size={10}/>{conflictPairs} conflicto{conflictPairs!==1?'s':''}
+  </button>
+)}
           {potentialDuplicates.length>0&&(
             <button onClick={()=>setActiveTab('subjects')}
               className="hidden sm:flex items-center gap-1 bg-amber-50 text-amber-600 px-2 py-1 rounded-lg border border-amber-100 text-[10px] font-bold hover:bg-amber-100 transition-colors">
@@ -2036,7 +2040,7 @@ export default function App() {
               <div className="flex flex-wrap gap-2">
                 {COLORS.map((color,idx)=>(
                   <button key={idx} onClick={()=>setEditingTeacher(p=>({...p,color}))}
-                    className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center transition-transform ${color} ${editingTeacher.color===color?'scale-110 border-slate-600 shadow-md':'border-transparent hover:scale-105'}`}>
+                    className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center transition-transform ${color} ${editingTeacher.color===color?'scale-110 ring-2 ring-slate-700 ring-offset-1 shadow-md':'hover:scale-105'}`}>
                     {editingTeacher.color===color&&<Check size={12}/>}
                   </button>
                 ))}
