@@ -148,25 +148,25 @@ function Badge({ children, color='slate' }) {
   return <span className={`px-2 py-0.5 rounded-lg text-sm font-bold ${map[color]}`}>{children}</span>;
 }
 
-function SubjectDropdown({ value, onChange, subjects }) {
+function SearchableDropdown({ value, onChange, items, placeholder = '— Seleccionar —', emptyLabel = '— Sin asignar —' }) {
   const [open, setOpen]   = useState(false);
   const [query, setQuery] = useState('');
   const ref = useRef(null);
-  const selected = subjects.find(s => s.id === value);
+  const selected = items.find(s => s.id === value);
   useEffect(() => {
     const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, []);
   const filtered = useMemo(() =>
-    query.trim() ? subjects.filter(s => ns(s.name).includes(ns(query))) : subjects,
-    [subjects, query]
+    query.trim() ? items.filter(s => ns(s.name).includes(ns(query))) : items,
+    [items, query]
   );
   return (
     <div ref={ref} className="relative">
       <button type="button" onClick={() => { setOpen(o => !o); setQuery(''); }}
         className="w-full text-sm border border-slate-200 rounded-xl px-4 py-2.5 bg-white text-left flex items-center justify-between gap-2 hover:border-slate-300 transition-colors outline-none focus:ring-2 ring-indigo-100">
-        <span className={selected ? 'text-slate-800 font-semibold' : 'text-slate-400'}>{selected?.name ?? '— Seleccionar materia —'}</span>
+        <span className={selected ? 'text-slate-800 font-semibold' : 'text-slate-400'}>{selected?.name ?? placeholder}</span>
         <ChevronDown size={14} className={`text-slate-400 transition-transform shrink-0 ${open?'rotate-180':''}`}/>
       </button>
       {open && (
@@ -180,7 +180,7 @@ function SubjectDropdown({ value, onChange, subjects }) {
           </div>
           <div className="max-h-48 overflow-y-auto">
             <button onClick={() => { onChange(''); setOpen(false); }}
-              className="w-full text-left px-4 py-2 text-xs text-slate-400 hover:bg-slate-50 transition-colors">— Sin materia —</button>
+              className="w-full text-left px-4 py-2 text-xs text-slate-400 hover:bg-slate-50 transition-colors">{emptyLabel}</button>
             {filtered.length === 0
               ? <div className="px-4 py-3 text-xs text-slate-400 text-center">Sin resultados</div>
               : filtered.map(s => (
@@ -196,6 +196,10 @@ function SubjectDropdown({ value, onChange, subjects }) {
       )}
     </div>
   );
+}
+// backward compat alias
+function SubjectDropdown({ value, onChange, subjects }) {
+  return <SearchableDropdown value={value} onChange={onChange} items={subjects} placeholder="— Seleccionar materia —" emptyLabel="— Sin materia —"/>;
 }
 
 
@@ -566,6 +570,7 @@ export default function App() {
   const [parsedPreview, setParsedPreview] = useState(null);
   const [lastReport,    setLastReport]    = useState(null);
   const [editingCell,    setEditingCell]    = useState(null);
+  const [changeLog,      setChangeLog]      = useState([]);
   const [editingTeacher, setEditingTeacher] = useState(null);
   const [editingSubject, setEditingSubject] = useState(null);
   const [mergingSubject, setMergingSubject] = useState(null);
@@ -729,6 +734,12 @@ export default function App() {
     setTimeout(() => setMessage(null), 3000);
   };
 
+  const logChange = (action, detail) => {
+    const ts = new Date().toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    const date = new Date().toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit' });
+    setChangeLog(prev => [{ id: Date.now(), ts, date, action, detail }, ...prev].slice(0, 200));
+  };
+
   useEffect(() => {
     const handler = (e) => {
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') { e.preventDefault(); undo(); }
@@ -821,7 +832,7 @@ export default function App() {
     pushHistory(newSchedule); setSchedule(newSchedule); setLastReport(report);
     saveAll(newCourses, newTeacherList, newSubjectList, newSchedule, report);
     setCsvContent(''); setParsedPreview(null); setImportStep('input');
-    setActiveTab('alerts'); showMsg('Importación completada.');
+    setActiveTab('alerts'); showMsg('Importación completada.'); logChange('Importación CSV', `${newCourses.length} cursos, ${newTeacherList.length} docentes, ${importedCount} módulos`);
   };
 
   // ── Conflicts ─────────────────────────────────────────────────────────────
@@ -868,12 +879,28 @@ export default function App() {
     setEditingCell({ key, teacherId: cell.teacherId||'', subjectId: cell.subjectId||'' });
   };
   const saveCell = (key, data) => {
-    const { courses: c, teachers: t, subjects: s, schedule: cur, lastReport: lr } = latestDataRef.current;
-    const ns2 = { ...cur };
-    if (!data.teacherId && !data.subjectId) delete ns2[key];
-    else ns2[key] = { teacherId: data.teacherId, subjectId: data.subjectId };
-    pushHistory(ns2); setSchedule(ns2);
-    saveAll(c, t, s, ns2, lr);
+    setSchedule(cur => {
+      const ns2 = { ...cur };
+      const wasEmpty = !cur[key];
+      if (!data.teacherId && !data.subjectId) delete ns2[key];
+      else ns2[key] = { teacherId: data.teacherId, subjectId: data.subjectId };
+      setTimeout(() => {
+        const { courses: c, teachers: t, subjects: s, lastReport: lr } = latestDataRef.current;
+        pushHistory(ns2);
+        saveAll(c, t, s, ns2, lr);
+        // Build log detail
+        const [dIdx, pId, cId] = key.split('-');
+        const courseName = c.find(x=>x.id===parseInt(cId))?.name || '?';
+        const day = ['Lun','Mar','Mié','Jue','Vie'][parseInt(dIdx)] || '?';
+        const period = FIXED_PERIODS.find(p=>p.id===parseInt(pId));
+        const subjName = data.subjectId ? s.find(x=>x.id===data.subjectId)?.name : null;
+        const teachName = data.teacherId ? t.find(x=>x.id===data.teacherId)?.name : null;
+        const action = (!data.teacherId && !data.subjectId) ? 'Celda borrada' : wasEmpty ? 'Celda asignada' : 'Celda editada';
+        const detail = `${day} Mód.${period?.mod||'?'} · ${courseName}` + (subjName ? ` → ${subjName}` : '') + (teachName ? ` / ${teachName}` : '');
+        logChange(action, detail);
+      }, 0);
+      return ns2;
+    });
     setEditingCell(null);
   };
 
@@ -884,19 +911,22 @@ export default function App() {
     Object.keys(ns2).forEach(k => { if (ns2[k].teacherId === id) ns2[k] = {...ns2[k], teacherId:''}; });
     setTeachers(nt); setSchedule(ns2);
     saveAll(courses, nt, subjects, ns2, lastReport);
-    showMsg('Docente eliminado.');
+    showMsg('Docente eliminado.'); logChange('Docente eliminado', teachers.find(t=>t.id===id)?.name || id);
   };
   const saveTeacher = t => {
-    const nt = teachers.find(x=>x.id===t.id) ? teachers.map(x=>x.id===t.id?t:x) : [...teachers, t];
+    const isNew = !teachers.find(x=>x.id===t.id);
+    const nt = isNew ? [...teachers, t] : teachers.map(x=>x.id===t.id?t:x);
     setTeachers(nt); saveAll(courses, nt, subjects, schedule, lastReport); setEditingTeacher(null);
+    logChange(isNew ? 'Docente creado' : 'Docente editado', t.name);
   };
 
   // ── Subject CRUD ──────────────────────────────────────────────────────────
   const renameSubject = (id, newName) => {
     const t = newName.trim(); if (!t) return;
     const ns2 = subjects.map(s => s.id===id ? {...s, name:t} : s);
+    const oldName = subjects.find(s=>s.id===id)?.name;
     setSubjects(ns2); saveAll(courses, teachers, ns2, schedule, lastReport);
-    setEditingSubject(null); showMsg('Materia renombrada.');
+    setEditingSubject(null); showMsg('Materia renombrada.'); logChange('Materia renombrada', `${oldName} → ${t}`);
   };
   const deleteSubject = id => {
     const ns2 = subjects.filter(s => s.id !== id);
@@ -908,7 +938,7 @@ export default function App() {
       }
     });
     setSubjects(ns2); setSchedule(sched2);
-    saveAll(courses, teachers, ns2, sched2, lastReport); showMsg('Materia eliminada.');
+    saveAll(courses, teachers, ns2, sched2, lastReport); showMsg('Materia eliminada.'); logChange('Materia eliminada', subjects.find(s=>s.id===id)?.name || id);
   };
   const mergeSubjects = (keepId, removeId) => {
     if (keepId===removeId) return;
@@ -1308,7 +1338,7 @@ window.print();window.onafterprint=()=>window.close();
                     <thead className="sticky top-0 z-20">
                       <tr className="bg-slate-50">
                         <th className="p-2.5 border-b border-r border-slate-200 text-[10px] font-bold text-slate-500 uppercase w-16 sticky left-0 bg-slate-50 z-30">Mód.</th>
-                        {courses.map(c=><th key={c.id} className="p-2.5 border-b border-r border-slate-200 text-[11px] font-bold text-slate-700 min-w-[140px] text-left">{c.name}</th>)}
+                        {courses.map(c=><th key={c.id} className="p-2.5 border-b border-r border-slate-200 text-[11px] font-bold text-slate-700 text-left" style={{width:'140px',maxWidth:'140px',minWidth:'140px'}}><span className="block truncate">{c.name}</span></th>)}
                       </tr>
                     </thead>
                     <tbody>
@@ -1342,8 +1372,8 @@ window.print();window.onafterprint=()=>window.close();
                                   {cell?(
                                     <div className={`rounded-lg p-2 border h-full transition-all ${dimmed?'opacity-20':''} ${hasConflict?'border-red-300 bg-red-50 text-red-700':'border-slate-200'}`}
                                       style={!hasConflict && teacher?.colorHex ? teacherStyle(teacher.colorHex) : {}}>
-                                      <div className="text-[10px] font-bold leading-snug truncate">{subject?.name??<span className="italic text-slate-400">Sin materia</span>}</div>
-                                      <div className="text-[8px] opacity-70 font-bold uppercase truncate mt-0.5">{teacher?.name??<span className="text-slate-300">Sin docente</span>}</div>
+                                      <div className="text-[10px] font-bold leading-snug truncate overflow-hidden whitespace-nowrap">{subject?.name??<span className="italic text-slate-400">Sin materia</span>}</div>
+                                      <div className="text-[8px] opacity-70 font-bold uppercase truncate overflow-hidden whitespace-nowrap mt-0.5">{teacher?.name??<span className="text-slate-300">Sin docente</span>}</div>
                                       {hasConflict&&<div className="flex items-center gap-0.5 mt-1"><AlertTriangle size={8} className="text-red-500 shrink-0"/><span className="text-[8px] text-red-500 font-bold">Conflicto</span></div>}
                                     </div>
                                   ):(
@@ -1606,6 +1636,45 @@ window.print();window.onafterprint=()=>window.close();
                 setActiveTab('grid');
               }}
             />
+            {/* Historial de cambios */}
+            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50">
+                <div className="flex items-center gap-2">
+                  <FileText size={14} className="text-slate-400"/>
+                  <span className="text-sm font-black text-slate-700">Historial de cambios</span>
+                  {changeLog.length>0&&<span className="text-[10px] font-bold bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full">{changeLog.length}</span>}
+                </div>
+                {changeLog.length>0&&(
+                  <button onClick={()=>setChangeLog([])} className="text-[10px] font-bold text-slate-400 hover:text-red-500 transition-colors">Limpiar</button>
+                )}
+              </div>
+              {changeLog.length===0?(
+                <div className="py-10 text-center text-slate-300">
+                  <FileText size={28} className="mx-auto mb-2"/>
+                  <p className="text-xs font-bold text-slate-400">Sin cambios registrados aún.</p>
+                </div>
+              ):(
+                <div className="overflow-y-auto" style={{maxHeight:'260px'}}>
+                  {changeLog.map(entry=>(
+                    <div key={entry.id} className="flex items-start gap-3 px-4 py-2.5 border-b border-slate-50 last:border-0 hover:bg-slate-50/60 transition-colors">
+                      <div className="shrink-0 text-right" style={{minWidth:'72px'}}>
+                        <div className="text-[9px] font-black text-slate-400 uppercase">{entry.date}</div>
+                        <div className="text-[9px] font-bold text-slate-300 font-mono">{entry.ts}</div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className={`inline-block text-[9px] font-black uppercase px-1.5 py-0.5 rounded mb-0.5 ${
+                          entry.action.includes('borrad')||entry.action.includes('eliminad') ? 'bg-red-50 text-red-500' :
+                          entry.action.includes('cread')||entry.action.includes('asignad') ? 'bg-emerald-50 text-emerald-600' :
+                          entry.action.includes('Import') ? 'bg-indigo-50 text-indigo-600' :
+                          'bg-amber-50 text-amber-600'
+                        }`}>{entry.action}</span>
+                        <p className="text-xs text-slate-600 font-medium truncate">{entry.detail}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -1764,11 +1833,13 @@ window.print();window.onafterprint=()=>window.close();
             </div>
             <div>
               <label className="text-[10px] font-black text-slate-500 uppercase block mb-1.5">Docente</label>
-              <select value={editingCell.teacherId} onChange={e=>setEditingCell(p=>({...p,teacherId:e.target.value}))}
-                className="w-full text-sm border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 ring-indigo-100 bg-white">
-                <option value="">— Sin docente —</option>
-                {[...teachers].sort((a,b)=>a.name.localeCompare(b.name,'es')).map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
+              <SearchableDropdown
+                value={editingCell.teacherId}
+                onChange={v=>setEditingCell(p=>({...p,teacherId:v}))}
+                items={[...teachers].sort((a,b)=>a.name.localeCompare(b.name,'es'))}
+                placeholder="— Seleccionar docente —"
+                emptyLabel="— Sin docente —"
+              />
             </div>
             <div className="flex gap-3 pt-1">
               <button onClick={()=>saveCell(editingCell.key,{teacherId:'',subjectId:''})}
