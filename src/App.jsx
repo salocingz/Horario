@@ -879,26 +879,26 @@ export default function App() {
     setEditingCell({ key, teacherId: cell.teacherId||'', subjectId: cell.subjectId||'' });
   };
   const saveCell = (key, data) => {
+    // Compute new schedule synchronously from current state
     setSchedule(cur => {
       const ns2 = { ...cur };
       const wasEmpty = !cur[key];
       if (!data.teacherId && !data.subjectId) delete ns2[key];
       else ns2[key] = { teacherId: data.teacherId, subjectId: data.subjectId };
-      setTimeout(() => {
-        const { courses: c, teachers: t, subjects: s, lastReport: lr } = latestDataRef.current;
-        pushHistory(ns2);
-        saveAll(c, t, s, ns2, lr);
-        // Build log detail
-        const [dIdx, pId, cId] = key.split('-');
-        const courseName = c.find(x=>x.id===parseInt(cId))?.name || '?';
-        const day = ['Lun','Mar','Mié','Jue','Vie'][parseInt(dIdx)] || '?';
-        const period = FIXED_PERIODS.find(p=>p.id===parseInt(pId));
-        const subjName = data.subjectId ? s.find(x=>x.id===data.subjectId)?.name : null;
-        const teachName = data.teacherId ? t.find(x=>x.id===data.teacherId)?.name : null;
-        const action = (!data.teacherId && !data.subjectId) ? 'Celda borrada' : wasEmpty ? 'Celda asignada' : 'Celda editada';
-        const detail = `${day} Mód.${period?.mod||'?'} · ${courseName}` + (subjName ? ` → ${subjName}` : '') + (teachName ? ` / ${teachName}` : '');
-        logChange(action, detail);
-      }, 0);
+      // Pass ns2 directly — never read latestDataRef.schedule which is the OLD value
+      const { courses: c, teachers: t, subjects: s, lastReport: lr } = latestDataRef.current;
+      pushHistory(ns2);
+      saveAll(c, t, s, ns2, lr);
+      // Log
+      const [dIdx, pId, cId] = key.split('-');
+      const courseName = c.find(x=>x.id===parseInt(cId))?.name || '?';
+      const day = ['Lun','Mar','Mié','Jue','Vie'][parseInt(dIdx)] || '?';
+      const period = FIXED_PERIODS.find(fp=>fp.id===parseInt(pId));
+      const subjName = data.subjectId ? s.find(x=>x.id===data.subjectId)?.name : null;
+      const teachName = data.teacherId ? t.find(x=>x.id===data.teacherId)?.name : null;
+      const action = (!data.teacherId && !data.subjectId) ? 'Celda borrada' : wasEmpty ? 'Celda asignada' : 'Celda editada';
+      const detail = `${day} Mód.${period?.mod||'?'} · ${courseName}` + (subjName ? ` → ${subjName}` : '') + (teachName ? ` / ${teachName}` : '');
+      logChange(action, detail);
       return ns2;
     });
     setEditingCell(null);
@@ -1334,7 +1334,7 @@ window.print();window.onafterprint=()=>window.close();
             ) : (
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="overflow-auto" style={{maxHeight:'calc(100vh - 175px)'}}>
-                  <table className="w-full border-separate border-spacing-0">
+                  <table className="w-full border-separate border-spacing-0 table-fixed">
                     <thead className="sticky top-0 z-20">
                       <tr className="bg-slate-50">
                         <th className="p-2.5 border-b border-r border-slate-200 text-[10px] font-bold text-slate-500 uppercase w-16 sticky left-0 bg-slate-50 z-30">Mód.</th>
@@ -1367,6 +1367,7 @@ window.print();window.onafterprint=()=>window.close();
                               const dimmed      = searchTerm&&!highlighted&&!!cell;
                               return (
                                 <td key={course.id}
+                                  style={{width:'140px',maxWidth:'140px',overflow:'hidden'}}
                                   className={`p-1.5 border-b border-r border-slate-100 cursor-pointer transition-colors ${highlighted?'bg-yellow-50':'hover:bg-slate-50/60'}`}
                                   onClick={()=>openCellEditor(period.id,course.id)}>
                                   {cell?(
@@ -1637,43 +1638,26 @@ window.print();window.onafterprint=()=>window.close();
               }}
             />
             {/* Historial de cambios */}
-            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50">
+            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                 <div className="flex items-center gap-2">
-                  <FileText size={14} className="text-slate-400"/>
-                  <span className="text-sm font-black text-slate-700">Historial de cambios</span>
-                  {changeLog.length>0&&<span className="text-[10px] font-bold bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full">{changeLog.length}</span>}
+                  <FileText size={15} className="text-slate-400"/>
+                  <span className="text-sm font-black text-slate-600">Historial de cambios ({changeLog.length})</span>
                 </div>
-                {changeLog.length>0&&(
-                  <button onClick={()=>setChangeLog([])} className="text-[10px] font-bold text-slate-400 hover:text-red-500 transition-colors">Limpiar</button>
-                )}
+                {changeLog.length>0&&<button onClick={()=>setChangeLog([])} className="text-xs text-slate-400 hover:text-red-500 transition-colors font-bold">Limpiar</button>}
               </div>
-              {changeLog.length===0?(
-                <div className="py-10 text-center text-slate-300">
-                  <FileText size={28} className="mx-auto mb-2"/>
-                  <p className="text-xs font-bold text-slate-400">Sin cambios registrados aún.</p>
-                </div>
-              ):(
-                <div className="overflow-y-auto" style={{maxHeight:'260px'}}>
-                  {changeLog.map(entry=>(
-                    <div key={entry.id} className="flex items-start gap-3 px-4 py-2.5 border-b border-slate-50 last:border-0 hover:bg-slate-50/60 transition-colors">
-                      <div className="shrink-0 text-right" style={{minWidth:'72px'}}>
-                        <div className="text-[9px] font-black text-slate-400 uppercase">{entry.date}</div>
-                        <div className="text-[9px] font-bold text-slate-300 font-mono">{entry.ts}</div>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className={`inline-block text-[9px] font-black uppercase px-1.5 py-0.5 rounded mb-0.5 ${
-                          entry.action.includes('borrad')||entry.action.includes('eliminad') ? 'bg-red-50 text-red-500' :
-                          entry.action.includes('cread')||entry.action.includes('asignad') ? 'bg-emerald-50 text-emerald-600' :
-                          entry.action.includes('Import') ? 'bg-indigo-50 text-indigo-600' :
-                          'bg-amber-50 text-amber-600'
-                        }`}>{entry.action}</span>
-                        <p className="text-xs text-slate-600 font-medium truncate">{entry.detail}</p>
-                      </div>
+              <div className="divide-y divide-slate-100 overflow-y-auto" style={{maxHeight:'240px'}}>
+                {changeLog.length===0
+                  ? <div className="px-4 py-3 text-xs text-slate-400">Sin cambios registrados aún.</div>
+                  : changeLog.map(entry=>(
+                    <div key={entry.id} className="px-4 py-2.5 flex items-center gap-2 text-xs">
+                      <span className="text-slate-300 shrink-0 font-mono">{entry.date} {entry.ts}</span>
+                      <ArrowRight size={10} className="text-slate-300 shrink-0"/>
+                      <span className="font-bold text-slate-700 truncate">{entry.action} · {entry.detail}</span>
                     </div>
-                  ))}
-                </div>
-              )}
+                  ))
+                }
+              </div>
             </div>
           </div>
         )}
