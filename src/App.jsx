@@ -588,6 +588,7 @@ export default function App() {
   const latestDataRef = useRef({ courses:[], teachers:[], subjects:[], schedule:{}, lastReport:null, mappings:{ teachers:{}, subjects:{} } });
   useEffect(() => { latestDataRef.current = { courses, teachers, subjects, schedule, lastReport, mappings }; }, [courses, teachers, subjects, schedule, lastReport, mappings]);
   const seededFirebaseRef = useRef(false);
+  const pendingWriteRef   = useRef(0); // counts in-flight local writes to Firebase
 
   useEffect(() => {
     loadSavedFBConfig().then(cfg => {
@@ -601,7 +602,11 @@ export default function App() {
 
     const unsub = fbSubscribe((data) => {
       if (data) {
-        // Cloud always wins — set everything unconditionally
+        // Skip snapshots triggered by our own writes — only accept external changes
+        if (pendingWriteRef.current > 0) {
+          setCloudStatus('saved');
+          return;
+        }
         setCourses(data.courses    || []);
         setTeachers(data.teachers  || []);
         setSubjects(data.subjects  || []);
@@ -662,10 +667,19 @@ export default function App() {
     const data = { courses:c, teachers:t, subjects:subj, schedule:s, lastReport:report, mappings: maps ?? mappings };
     setCloudStatus('syncing');
     try {
-      if (fbReady) { await fbSave(data); }
-      else { localStorage.setItem('masterschedule-v3', JSON.stringify(data)); }
+      if (fbReady) {
+        pendingWriteRef.current += 1;
+        await fbSave(data);
+        // Keep flag up for 1.5s to absorb the echo snapshot Firebase sends back
+        setTimeout(() => { pendingWriteRef.current = Math.max(0, pendingWriteRef.current - 1); }, 1500);
+      } else {
+        localStorage.setItem('masterschedule-v3', JSON.stringify(data));
+      }
       setCloudStatus('saved');
-    } catch (_) { setCloudStatus('error'); }
+    } catch (_) {
+      pendingWriteRef.current = Math.max(0, pendingWriteRef.current - 1);
+      setCloudStatus('error');
+    }
   }, [fbReady, fbSave, mappings]);
 
   const handleConnectFirebase = useCallback(async () => {
