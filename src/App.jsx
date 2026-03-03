@@ -886,11 +886,6 @@ export default function App() {
       return t;
     };
     
-      const t = { id:`t-${uid()}`, name, color: COLORS[teacherMap.size % COLORS.length], subject:'' };
-      teacherMap.set(key, t);
-      return t;
-    };
-
     // Build course list from parsedPairs
     const courseNames = [...new Set(parsedPairs.map(p => p.courseName))];
     const newCourses = courseNames.map((name, i) => ({ id: i+1, name }));
