@@ -99,7 +99,6 @@ function parseCSV(csvText) {
 }
 
 // ─── Micro-components ─────────────────────────────────────────────────────────
-// Inline spinner SVG — no external dep needed
 function Spinner({ size = 12, className = '' }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}
@@ -122,7 +121,7 @@ function CloudDot({ status, fbStatus }) {
     return (
       <div className="flex items-center gap-1 bg-red-100 border border-red-300 rounded-md px-1.5 py-0.5">
         <WifiOff size={11} className="text-red-500 shrink-0"/>
-        <span className="text-xs font-black text-red-600 uppercase tracking-wider">Sin conexión</span>
+        <span className="text-sm font-black text-red-600 uppercase tracking-wider">Sin conexión</span>
       </div>
     );
   }
@@ -130,65 +129,55 @@ function CloudDot({ status, fbStatus }) {
     return (
       <div className="flex items-center gap-1.5">
         <Spinner size={13} className="text-amber-400"/>
-        <span className="text-xs font-bold text-amber-500 uppercase tracking-wider">Conectando…</span>
+        <span className="text-sm font-bold text-amber-500 uppercase tracking-wider">Conectando…</span>
       </div>
     );
   }
-
-  // Syncing state — spinner
   if (isSyncing) {
     return (
       <div className="flex items-center gap-1.5">
         <Spinner size={13} className={isConnected ? 'text-indigo-400' : 'text-amber-400'}/>
-        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Guardando…</span>
+        <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">Guardando…</span>
       </div>
     );
   }
-
-  // Just saved — animated check in green
   if (isJustSaved) {
     return (
       <div className="flex items-center gap-1.5" style={{animation:'fadeIn 0.2s ease'}}>
         <div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center">
           <Check size={9} className="text-white" strokeWidth={3}/>
         </div>
-        <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Guardado</span>
+        <span className="text-sm font-bold text-emerald-600 uppercase tracking-wider">Guardado</span>
       </div>
     );
   }
-
-  // Error
   if (isError) {
     return (
       <div className="flex items-center gap-1.5">
         <div className="w-2 h-2 rounded-full bg-red-400"/>
-        <span className="text-xs font-bold text-red-500 uppercase tracking-wider">Error al guardar</span>
+        <span className="text-sm font-bold text-red-500 uppercase tracking-wider">Error al guardar</span>
       </div>
     );
   }
-
-  // Idle — connected to Firebase
   if (isConnected) {
     return (
       <div className="flex items-center gap-1.5">
         <Database size={11} className="text-slate-300"/>
-        <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Firebase</span>
+        <span className="text-sm font-bold text-slate-300 uppercase tracking-wider">Firebase</span>
       </div>
     );
   }
-
-  // Idle — local storage
   return (
     <div className="flex items-center gap-1.5">
       <div className="w-2 h-2 rounded-full bg-slate-300"/>
-      <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Local</span>
+      <span className="text-sm font-bold text-slate-300 uppercase tracking-wider">Local</span>
     </div>
   );
 }
 
 function Badge({ children, color='slate' }) {
   const map = { slate:'bg-slate-100 text-slate-500', indigo:'bg-indigo-50 text-indigo-600', red:'bg-red-50 text-red-600', amber:'bg-amber-50 text-amber-600', emerald:'bg-emerald-50 text-emerald-700' };
-  return <span className={`px-2 py-0.5 rounded-lg text-3xl font-bold ${map[color]}`}>{children}</span>;
+  return <span className={`px-2 py-0.5 rounded-lg text-base font-bold ${map[color]}`}>{children}</span>;
 }
 
 function SearchableDropdown({ value, onChange, items, placeholder = '— Seleccionar —', emptyLabel = '— Sin asignar —' }) {
@@ -208,7 +197,7 @@ function SearchableDropdown({ value, onChange, items, placeholder = '— Selecci
   return (
     <div ref={ref} className="relative">
       <button type="button" onClick={() => { setOpen(o => !o); setQuery(''); }}
-        className="w-full text-3xl border border-slate-200 rounded-xl px-4 py-2.5 bg-white text-left flex items-center justify-between gap-2 hover:border-slate-300 transition-colors outline-none focus:ring-2 ring-indigo-100">
+        className="w-full text-base border border-slate-200 rounded-xl px-4 py-2.5 bg-white text-left flex items-center justify-between gap-2 hover:border-slate-300 transition-colors outline-none focus:ring-2 ring-indigo-100">
         <span className={selected ? 'text-slate-800 font-semibold' : 'text-slate-400'}>{selected?.name ?? placeholder}</span>
         <ChevronDown size={14} className={`text-slate-400 transition-transform shrink-0 ${open?'rotate-180':''}`}/>
       </button>
@@ -218,17 +207,17 @@ function SearchableDropdown({ value, onChange, items, placeholder = '— Selecci
             <div className="relative">
               <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"/>
               <input autoFocus type="text" value={query} onChange={e => setQuery(e.target.value)}
-                placeholder="Buscar…" className="w-full text-3xl pl-7 pr-3 py-1.5 border border-slate-200 rounded-lg outline-none focus:ring-2 ring-indigo-100"/>
+                placeholder="Buscar…" className="w-full text-sm pl-7 pr-3 py-1.5 border border-slate-200 rounded-lg outline-none focus:ring-2 ring-indigo-100"/>
             </div>
           </div>
           <div className="max-h-48 overflow-y-auto">
             <button onClick={() => { onChange(''); setOpen(false); }}
-              className="w-full text-left px-4 py-2 text-3xl text-slate-400 hover:bg-slate-50 transition-colors">{emptyLabel}</button>
+              className="w-full text-left px-4 py-2 text-sm text-slate-400 hover:bg-slate-50 transition-colors">{emptyLabel}</button>
             {filtered.length === 0
-              ? <div className="px-4 py-3 text-3xl text-slate-400 text-center">Sin resultados</div>
+              ? <div className="px-4 py-3 text-sm text-slate-400 text-center">Sin resultados</div>
               : filtered.map(s => (
                   <button key={s.id} onClick={() => { onChange(s.id); setOpen(false); }}
-                    className={`w-full text-left px-4 py-2 text-3xl transition-colors flex items-center justify-between
+                    className={`w-full text-left px-4 py-2 text-base transition-colors flex items-center justify-between
                       ${s.id===value?'bg-indigo-50 text-indigo-700 font-bold':'hover:bg-slate-50 text-slate-700 font-medium'}`}>
                     {s.name}{s.id===value&&<Check size={12}/>}
                   </button>
@@ -251,7 +240,7 @@ function AlertsPanel({ report, conflictList = [], allConflictList = [], acknowle
   if (!report && allConflictList.length === 0) return (
     <div className="flex flex-col items-center justify-center py-20 text-slate-300">
       <Bell size={40} className="mb-3"/>
-      <p className="text-slate-400 font-bold text-2xl">Sin reportes de importación aún.</p>
+      <p className="text-slate-400 font-bold text-base">Sin reportes de importación aún.</p>
     </div>
   );
   const hasIssues = report && (report.warnings.length > 0 || report.skipped.length > 0);
@@ -263,28 +252,28 @@ function AlertsPanel({ report, conflictList = [], allConflictList = [], acknowle
         <div className="bg-white border border-red-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="p-4 border-b border-red-100 flex items-center gap-2 bg-red-50">
             <AlertTriangle size={15} className="text-red-500"/>
-            <span className="text-sm font-black text-red-700">Conflictos de horario ({conflictList.length})</span>
+            <span className="text-base font-black text-red-700">Conflictos de horario ({conflictList.length})</span>
           </div>
           <div className="divide-y divide-red-50">
             {conflictList.map((c, i) => (
               <div key={i} className="px-4 py-3 flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-black text-slate-800">{c.teacher?.name ?? 'Docente desconocido'}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <p className="text-base font-black text-slate-800">{c.teacher?.name ?? 'Docente desconocido'}</p>
+                  <p className="text-sm text-slate-500 mt-0.5">
                     {c.day} · {c.period.mod}° módulo ({c.period.start}–{c.period.end})
                   </p>
-                  <p className="text-xs text-red-600 font-medium mt-1">
+                  <p className="text-sm text-red-600 font-medium mt-1">
                     Asignado simultáneamente a: {c.entries.map(e => e.course.name).join(', ')}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0 mt-0.5">
                   <button onClick={() => onGoToConflict(c)}
-                    className="flex items-center gap-1.5 text-3xl font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors">
+                    className="flex items-center gap-1.5 text-sm font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors">
                     <Eye size={11}/>Ver en grilla
                   </button>
                   <button onClick={() => onAcknowledge(c)}
                     title="Marcar como aceptado — deja de mostrarse como conflicto"
-                    className="flex items-center gap-1.5 text-3xl font-bold text-slate-500 bg-slate-100 border border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 px-3 py-1.5 rounded-lg transition-colors">
+                    className="flex items-center gap-1.5 text-sm font-bold text-slate-500 bg-slate-100 border border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 px-3 py-1.5 rounded-lg transition-colors">
                     <CheckCircle2 size={11}/>Aceptar
                   </button>
                 </div>
@@ -299,20 +288,20 @@ function AlertsPanel({ report, conflictList = [], allConflictList = [], acknowle
         <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="p-4 border-b border-slate-100 flex items-center gap-2 bg-slate-50">
             <CheckCircle2 size={15} className="text-emerald-500"/>
-            <span className="text-sm font-black text-slate-500">Conflictos aceptados ({acknowledgedList.length})</span>
+            <span className="text-base font-black text-slate-500">Conflictos aceptados ({acknowledgedList.length})</span>
             <span className="text-sm text-slate-400 font-medium ml-1">— no se muestran en la grilla</span>
           </div>
           <div className="divide-y divide-slate-100">
             {acknowledgedList.map((c, i) => (
               <div key={i} className="px-4 py-3 flex items-start justify-between gap-3 opacity-60">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-slate-600 line-through">{c.teacher?.name ?? 'Docente desconocido'}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{c.day} · {c.period.mod}° módulo ({c.period.start}–{c.period.end})</p>
-                  <p className="text-xs text-slate-400 mt-1">{c.entries.map(e => e.course.name).join(', ')}</p>
+                  <p className="text-base font-bold text-slate-600 line-through">{c.teacher?.name ?? 'Docente desconocido'}</p>
+                  <p className="text-sm text-slate-400 mt-0.5">{c.day} · {c.period.mod}° módulo ({c.period.start}–{c.period.end})</p>
+                  <p className="text-sm text-slate-400 mt-1">{c.entries.map(e => e.course.name).join(', ')}</p>
                 </div>
                 <button onClick={() => onAcknowledge(c)}
                   title="Reactivar — vuelve a mostrarse como conflicto"
-                  className="flex items-center gap-1.5 text-3xl font-bold text-slate-400 bg-white border border-slate-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 px-3 py-1.5 rounded-lg transition-colors shrink-0 mt-0.5">
+                  className="flex items-center gap-1.5 text-sm font-bold text-slate-400 bg-white border border-slate-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 px-3 py-1.5 rounded-lg transition-colors shrink-0 mt-0.5">
                   <X size={11}/>Reactivar
                 </button>
               </div>
@@ -340,18 +329,18 @@ function AlertsPanel({ report, conflictList = [], allConflictList = [], acknowle
           {!hasIssues && (
             <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-5 flex items-center gap-3">
               <CheckCircle2 size={20} className="text-emerald-500 shrink-0"/>
-              <p className="text-sm font-bold text-emerald-700">Importación perfecta — no se detectaron inconsistencias.</p>
+              <p className="text-base font-bold text-emerald-700">Importación perfecta — no se detectaron inconsistencias.</p>
             </div>
           )}
           {report.warnings.length > 0 && (
             <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
               <div className="p-4 border-b border-slate-100 flex items-center gap-2 bg-red-50">
                 <AlertTriangle size={15} className="text-red-500"/>
-                <span className="text-sm font-black text-red-700">Problemas de estructura ({report.warnings.length})</span>
+                <span className="text-base font-black text-red-700">Problemas de estructura ({report.warnings.length})</span>
               </div>
               <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
                 {report.warnings.map((w,i) => (
-                  <div key={i} className="px-4 py-2.5 text-3xl text-slate-600 flex items-start gap-2">
+                  <div key={i} className="px-4 py-2.5 text-sm text-slate-600 flex items-start gap-2">
                     <span className="text-red-300 mt-0.5 shrink-0">·</span>{w}
                   </div>
                 ))}
@@ -362,11 +351,11 @@ function AlertsPanel({ report, conflictList = [], allConflictList = [], acknowle
             <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
               <div className="p-4 border-b border-slate-100 flex items-center gap-2">
                 <Info size={15} className="text-slate-400"/>
-                <span className="text-sm font-black text-slate-600">Celdas omitidas ({report.skipped.length})</span>
+                <span className="text-base font-black text-slate-600">Celdas omitidas ({report.skipped.length})</span>
               </div>
               <div className="divide-y divide-slate-100 max-h-48 overflow-y-auto">
                 {report.skipped.map((s,i) => (
-                  <div key={i} className="px-4 py-2.5 text-3xl text-slate-500 flex items-start gap-2">
+                  <div key={i} className="px-4 py-2.5 text-sm text-slate-500 flex items-start gap-2">
                     <span className="text-slate-300 mt-0.5 shrink-0">·</span>{s}
                   </div>
                 ))}
@@ -403,20 +392,20 @@ function ImportPreview({ parsedPairs, courses, onConfirm, onBack }) {
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
-            <h3 className="font-black text-slate-800 text-2xl">Vista previa — confirmá antes de guardar</h3>
-            <p className="text-xs text-slate-500 mt-1">Revisá que la información sea idéntica a tu archivo.</p>
+            <h3 className="font-black text-slate-800 text-lg">Vista previa — confirmá antes de guardar</h3>
+            <p className="text-sm text-slate-500 mt-1">Revisá que la información sea idéntica a tu archivo.</p>
           </div>
           <div className="flex gap-2 flex-wrap">
             <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-1.5 text-center">
-              <div className="text-lg font-black text-emerald-600">{totalOk}</div>
+              <div className="text-xl font-black text-emerald-600">{totalOk}</div>
               <div className="text-xs font-bold text-emerald-500 uppercase">Completos</div>
             </div>
             <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-1.5 text-center">
-              <div className="text-lg font-black text-amber-600">{totalNoTeach}</div>
+              <div className="text-xl font-black text-amber-600">{totalNoTeach}</div>
               <div className="text-xs font-bold text-amber-500 uppercase">Sin docente</div>
             </div>
             <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-center">
-              <div className="text-lg font-black text-slate-400">{totalEmpty}</div>
+              <div className="text-xl font-black text-slate-400">{totalEmpty}</div>
               <div className="text-xs font-bold text-slate-400 uppercase">Vacíos</div>
             </div>
           </div>
@@ -425,7 +414,7 @@ function ImportPreview({ parsedPairs, courses, onConfirm, onBack }) {
           <span className="text-sm font-black text-slate-400 uppercase">Ver:</span>
           {[['all','Todos'],['issues','Solo con problemas']].map(([v,l]) => (
             <button key={v} onClick={() => setFilter(v)}
-              className={`px-3 py-1 rounded-lg text-3xl font-bold transition-colors ${filter===v?'bg-indigo-600 text-white':'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+              className={`px-3 py-1 rounded-lg text-sm font-bold transition-colors ${filter===v?'bg-indigo-600 text-white':'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
               {l}
             </button>
           ))}
@@ -433,7 +422,7 @@ function ImportPreview({ parsedPairs, courses, onConfirm, onBack }) {
       </div>
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         <div className="overflow-auto" style={{maxHeight:'50vh'}}>
-          <table className="w-full border-collapse text-2xl">
+          <table className="w-full border-collapse text-sm">
             <thead className="sticky top-0 z-10 bg-slate-50">
               <tr>
                 {['Día','Mód.','Curso','Materia (CSV)','Docente (CSV)','Estado'].map(h => (
@@ -470,10 +459,10 @@ function ImportPreview({ parsedPairs, courses, onConfirm, onBack }) {
         </div>
       </div>
       <div className="flex gap-3 justify-end">
-        <button onClick={onBack} className="px-5 py-2.5 rounded-xl font-bold text-3xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-2">
+        <button onClick={onBack} className="px-5 py-2.5 rounded-xl font-bold text-base border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-2">
           <ChevronLeft size={14}/> Volver y corregir
         </button>
-        <button onClick={onConfirm} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold text-3xl hover:bg-indigo-700 transition-colors flex items-center gap-2">
+        <button onClick={onConfirm} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold text-base hover:bg-indigo-700 transition-colors flex items-center gap-2">
           <Check size={14}/> Confirmar e Importar
         </button>
       </div>
@@ -562,7 +551,7 @@ function ConflictPanel({ conflicts, onNavigate, onEdit }) {
       <button onClick={() => setOpen(o => !o)}
         className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-100/60 transition-colors text-left">
         <AlertTriangle size={15} className="text-red-500 shrink-0"/>
-        <p className="flex-1 text-3xl text-red-700 font-black">
+        <p className="flex-1 text-base text-red-700 font-black">
           {conflicts.length} conflicto{conflicts.length !== 1 ? 's' : ''} detectado{conflicts.length !== 1 ? 's' : ''}
           <span className="font-medium ml-1.5">— docente asignado a más de un curso en el mismo módulo</span>
         </p>
@@ -572,20 +561,20 @@ function ConflictPanel({ conflicts, onNavigate, onEdit }) {
         <div className="border-t border-red-200 divide-y divide-red-100">
           {conflicts.map((c, i) => (
             <div key={i} className="px-4 py-3 flex items-start gap-3">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border text-3xl font-black mt-0.5 text-white"
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border text-sm font-black mt-0.5 text-white"
                 style={teacherAvatarStyle(c.teacher?.colorHex)}>
                 {c.teacher?.name?.charAt(0)?.toUpperCase() ?? '?'}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-black text-red-800">{c.teacher?.name ?? 'Docente desconocido'}</p>
-                <p className="text-xs text-red-600 font-medium mt-0.5">
+                <p className="text-base font-black text-red-800">{c.teacher?.name ?? 'Docente desconocido'}</p>
+                <p className="text-sm text-red-600 font-medium mt-0.5">
                   {c.day} · {c.period.mod}° módulo ({c.period.start}–{c.period.end})
                 </p>
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {c.entries.map(e => (
                     <button key={e.key} onClick={() => onEdit(c.dayIdx, c.period.id, e.course.id)}
                       title="Clic para editar esta celda"
-                      className="flex items-center gap-1 bg-white border border-red-300 text-red-700 text-3xl font-bold px-2.5 py-1 rounded-lg hover:bg-red-100 transition-colors">
+                      className="flex items-center gap-1 bg-white border border-red-300 text-red-700 text-sm font-bold px-2.5 py-1 rounded-lg hover:bg-red-100 transition-colors">
                       {e.course.name}<Edit2 size={10} className="opacity-60"/>
                     </button>
                   ))}
@@ -1294,29 +1283,29 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
       <div className="space-y-3">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-5 py-3 flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h3 className="font-black text-slate-800 text-3xl uppercase tracking-wide">{title}</h3>
+            <h3 className="font-black text-slate-800 text-base uppercase tracking-wide">{title}</h3>
             {modCount != null && (
               <p className="text-sm text-slate-400 font-bold mt-0.5">
-                <span className="text-indigo-600 font-black text-2xl">{modCount}</span> módulos semanales
+                <span className="text-indigo-600 font-black text-lg">{modCount}</span> módulos semanales
               </p>
             )}
           </div>
           <div className="flex gap-2">
             <button onClick={copyToExcel}
-              className="flex items-center gap-1.5 px-3 py-2 text-3xl font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl hover:bg-emerald-100 active:scale-95 transition-all">
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl hover:bg-emerald-100 active:scale-95 transition-all">
               <Copy size={12}/> Copiar para Excel
             </button>
             <button onClick={exportPDF}
-              className="flex items-center gap-1.5 px-3 py-2 text-3xl font-bold bg-red-50 text-red-600 border border-red-200 rounded-xl hover:bg-red-100 active:scale-95 transition-all">
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold bg-red-50 text-red-600 border border-red-200 rounded-xl hover:bg-red-100 active:scale-95 transition-all">
               <Download size={12}/> Descargar PDF
             </button>
           </div>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table ref={reportTableRef} className="w-full text-left border-collapse text-2xl">
+            <table ref={reportTableRef} className="w-full text-left border-collapse text-base">
               <thead>
-                <tr className="bg-slate-50 text-3xl font-black text-slate-500 uppercase">
+                <tr className="bg-slate-50 text-sm font-black text-slate-500 uppercase">
                   <th className="p-3 border-b border-r border-slate-200 w-24 text-center">Mód.</th>
                   {DAYS.map(d => <th key={d} className="p-3 border-b border-r border-slate-200 min-w-[160px]">{d}</th>)}
                 </tr>
@@ -1325,8 +1314,8 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                 {classPeriods.map(p => (
                   <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
                     <td className="p-3 border-b border-r border-slate-100 bg-slate-50/70 text-center align-middle">
-                      <div className={`text-sm font-black leading-none ${p.type==='pe'?'text-emerald-600':'text-indigo-600'}`}>{p.mod}°</div>
-                      <div className="text-xs text-slate-400 font-bold mt-1">{p.start}–{p.end}</div>
+                      <div className={`text-base font-black leading-none ${p.type==='pe'?'text-emerald-600':'text-indigo-600'}`}>{p.mod}°</div>
+                      <div className="text-sm text-slate-400 font-bold mt-1">{p.start}–{p.end}</div>
                     </td>
                     {DAYS.map((_, dI) => {
                       const cell = cellFn(dI, p);
@@ -1336,18 +1325,18 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                         <td key={dI} className={"p-2 border-b border-r align-top " + (isConflict ? "border-red-300 bg-red-50" : "border-slate-100")}>
                           {cell ? (
                             <div>
-                              <div className={"text-sm font-bold leading-snug " + (isConflict ? "text-red-700" : "text-slate-800")}>{cell.top}</div>
-                              {cell.bottom && <div className={"text-xs font-bold uppercase mt-0.5 " + (isConflict ? "text-red-400" : "text-slate-400")}>{cell.bottom}</div>}
+                              <div className={"text-base font-bold leading-snug " + (isConflict ? "text-red-700" : "text-slate-800")}>{cell.top}</div>
+                              {cell.bottom && <div className={"text-sm font-bold uppercase mt-0.5 " + (isConflict ? "text-red-400" : "text-slate-400")}>{cell.bottom}</div>}
                               {isConflict && (
                                 <div className="mt-1 bg-red-100 border border-red-200 rounded px-1.5 py-1">
-                                  <div className="text-xs text-red-600 font-black uppercase tracking-wide mb-0.5">⚠ Conflicto</div>
+                                  <div className="text-sm text-red-600 font-black uppercase tracking-wide mb-0.5">⚠ Conflicto</div>
                                   {conflictDetail && conflictDetail.map((d,i) => (
-                                    <div key={i} className="text-xs text-red-500 font-bold leading-tight">{d}</div>
+                                    <div key={i} className="text-sm text-red-500 font-bold leading-tight">{d}</div>
                                   ))}
                                 </div>
                               )}
                             </div>
-                          ) : <span className="text-slate-200 font-bold text-2xl">—</span>}
+                          ) : <span className="text-slate-200 font-bold text-base">—</span>}
                         </td>
                       );
                     })}
@@ -1366,7 +1355,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
     if (!reportSelection) return (
       <div className="flex flex-col items-center justify-center py-20">
         <BarChart3 size={44} className="text-slate-200 mb-4"/>
-        <p className="font-bold text-slate-400 text-2xl">Seleccioná un elemento para ver el reporte</p>
+        <p className="font-bold text-slate-400 text-base">Seleccioná un elemento para ver el reporte</p>
       </div>
     );
     if (reportType === 'teacher') {
@@ -1384,13 +1373,13 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
       return (
         <div className="space-y-3">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-5 py-4 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center border-2 text-3xl font-black shrink-0 text-white"
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center border-2 text-xl font-black shrink-0 text-white"
               style={teacherAvatarStyle(teacher.colorHex)}>
               {teacher.name.charAt(0).toUpperCase()}
             </div>
             <div>
-              <div className="font-black text-slate-800 text-3xl uppercase">{teacher.name}</div>
-              <div className="text-xs text-slate-400 font-bold mt-0.5">{teacher.subject || 'Sin materias asignadas'}</div>
+              <div className="font-black text-slate-800 text-lg uppercase">{teacher.name}</div>
+              <div className="text-sm text-slate-400 font-bold mt-0.5">{teacher.subject || 'Sin materias asignadas'}</div>
             </div>
           </div>
           <ScheduleGrid title={`Horario docente: ${teacher.name}`} modCount={modCount}
@@ -1480,7 +1469,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
         <div className="flex items-center gap-2.5 shrink-0">
           <div className="bg-indigo-600 p-1.5 rounded-lg"><Calendar className="text-white" size={16}/></div>
           <div>
-            <h1 className="text-sm font-bold text-slate-900 leading-tight">Horaria</h1>
+            <h1 className="text-base font-bold text-slate-900 leading-tight">Horaria</h1>
             <CloudDot status={cloudStatus} fbStatus={fbConfig ? fbStatus : 'idle'}/>
           </div>
         </div>
@@ -1502,12 +1491,12 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
             {tabs.map(t => (
               <button key={t.id}
                 onClick={() => { setActiveTab(t.id); setReportSelection(''); setListSearch(''); setSelectedItems(new Set()); if(t.id!=='import') setImportStep('input'); }}
-                className={`relative px-2 md:px-2.5 py-1.5 rounded-lg text-3xl font-bold transition-all flex items-center gap-1
+                className={`relative px-2 md:px-2.5 py-1.5 rounded-lg text-sm font-bold transition-all flex items-center gap-1
                   ${activeTab===t.id?'bg-white text-indigo-600 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>
                 {t.icon}
                 <span className="hidden md:inline">{t.label}</span>
                 {t.id==='alerts' && alertCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-black w-3.5 h-3.5 rounded-full flex items-center justify-center">
                     {alertCount > 9 ? '!' : alertCount}
                   </span>
                 )}
@@ -1522,10 +1511,10 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
         <div className="bg-red-600 text-white px-4 py-2.5 flex items-center justify-between gap-3 shadow-md">
           <div className="flex items-center gap-2">
             <WifiOff size={15} className="shrink-0"/>
-            <span className="text-sm font-bold">Sin conexión a Firebase — los cambios NO se están guardando en la nube.</span>
+            <span className="text-base font-bold">Sin conexión a Firebase — los cambios NO se están guardando en la nube.</span>
           </div>
           <button onClick={() => setActiveTab('config')}
-            className="text-xs font-black bg-white text-red-600 px-3 py-1 rounded-lg hover:bg-red-50 transition-colors shrink-0">
+            className="text-sm font-black bg-white text-red-600 px-3 py-1 rounded-lg hover:bg-red-50 transition-colors shrink-0">
             Ver config
           </button>
         </div>
@@ -1533,7 +1522,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
 
       {/* ── Toast ── */}
       {message&&(
-        <div className={`fixed top-14 right-4 z-[100] px-4 py-3 rounded-xl shadow-lg text-white text-3xl flex items-center gap-2
+        <div className={`fixed top-14 right-4 z-[100] px-4 py-3 rounded-xl shadow-lg text-white text-base flex items-center gap-2
           ${message.type==='error'?'bg-red-500':'bg-emerald-600'}`}>
           {message.type==='error'?<AlertCircle size={15}/>:<Check size={15}/>}
           <span className="font-bold">{message.text}</span>
@@ -1549,7 +1538,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
               <div className="flex border-b border-slate-100">
                 {DAYS.map((d,i)=>(
                   <button key={i} onClick={()=>setCurrentDay(i)}
-                    className={`flex-1 py-2.5 text-3xl font-black uppercase tracking-wide transition-all border-b-2
+                    className={`flex-1 py-2.5 text-sm font-black uppercase tracking-wide transition-all border-b-2
                       ${i===currentDay?'border-indigo-600 text-indigo-600 bg-indigo-50/60':'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>
                     <span className="hidden sm:inline">{d}</span>
                     <span className="sm:hidden">{d.slice(0,3)}</span>
@@ -1561,7 +1550,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                 <div className="relative flex-1 max-w-xs">
                   <Search className="absolute left-2.5 top-0 bottom-0 my-auto text-slate-400 pointer-events-none" style={{height:'12px',width:'12px'}} size={12}/>
                   <input type="text" placeholder="Buscar docente o materia…"
-                    className="w-full text-3xl border border-slate-200 rounded-lg pl-8 pr-7 py-1.5 leading-none outline-none focus:ring-2 ring-indigo-100"
+                    className="w-full text-sm border border-slate-200 rounded-lg pl-8 pr-7 py-1.5 leading-none outline-none focus:ring-2 ring-indigo-100"
                     value={searchTerm} onChange={e=>setSearchTerm(e.target.value)}/>
                   {searchTerm&&<button onClick={()=>setSearchTerm('')} className="absolute right-2 top-0 bottom-0 my-auto flex items-center text-slate-400 h-full"><X size={11}/></button>}
                 </div>
@@ -1569,11 +1558,11 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                 {courses.length>0&&(
                   <div className="flex gap-1">
                     <button onClick={exportGridExcel} title="Copiar para Excel"
-                      className="flex items-center gap-1 px-2.5 py-1.5 text-3xl font-bold rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors">
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-sm font-bold rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors">
                       <Copy size={12}/><span className="hidden sm:inline">Excel</span>
                     </button>
                     <button onClick={exportGridPDF} title="Exportar PDF"
-                      className="flex items-center gap-1 px-2.5 py-1.5 text-3xl font-bold rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors">
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-sm font-bold rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors">
                       <Download size={12}/><span className="hidden sm:inline">PDF</span>
                     </button>
                   </div>
@@ -1581,11 +1570,11 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                 {/* Undo/redo — right side */}
                 <div className="flex gap-1 ml-auto">
                   <button onClick={undo} disabled={historyIdx_s<=0} title="Deshacer (Ctrl+Z)"
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-3xl font-bold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-sm font-bold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                     <Undo2 size={13}/><span className="hidden sm:inline">Deshacer</span>
                   </button>
                   <button onClick={redo} disabled={historyIdx_s>=history.current.length-1} title="Rehacer (Ctrl+Y)"
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-3xl font-bold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-sm font-bold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                     <Redo2 size={13}/><span className="hidden sm:inline">Rehacer</span>
                   </button>
                 </div>
@@ -1595,8 +1584,8 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
             {courses.length===0 ? (
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-16 flex flex-col items-center text-center gap-4">
                 <Calendar size={44} className="text-slate-200"/>
-                <div><h3 className="font-black text-slate-400 text-2xl">Sin datos de horario</h3><p className="text-slate-400 text-3xl mt-1">Importá un CSV desde la pestaña <strong>Importar</strong>.</p></div>
-                <button onClick={()=>setActiveTab('import')} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold text-3xl hover:bg-indigo-700 transition-colors flex items-center gap-2"><Upload size={14}/>Importar</button>
+                <div><h3 className="font-black text-slate-400 text-xl">Sin datos de horario</h3><p className="text-slate-400 text-base mt-1">Importá un CSV desde la pestaña <strong>Importar</strong>.</p></div>
+                <button onClick={()=>setActiveTab('import')} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold text-base hover:bg-indigo-700 transition-colors flex items-center gap-2"><Upload size={14}/>Importar</button>
               </div>
             ) : (
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -1605,15 +1594,15 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                   <table className="w-full border-separate border-spacing-0 table-fixed">
                     <thead className="sticky top-0 z-20">
                       <tr className={gridScrolled?'bg-white shadow-sm':'bg-slate-50'} style={{transition:'background 0.2s'}}>
-                        <th className={`p-2.5 border-b border-r border-slate-200 text-3xl font-bold text-slate-500 uppercase w-16 sticky left-0 z-30 ${gridScrolled?'bg-white':'bg-slate-50'}`}>Mód.</th>
-                        {courses.map(c=><th key={c.id} className={`p-2.5 border-b border-r border-slate-200 text-3xl font-bold text-slate-700 text-left ${gridScrolled?'bg-white':'bg-slate-50'}`} style={{width:'180px',maxWidth:'180px',minWidth:'160px'}}><span className="block truncate">{c.name}</span></th>)}
+                        <th className={`p-2.5 border-b border-r border-slate-200 text-sm font-bold text-slate-500 uppercase w-16 sticky left-0 z-30 ${gridScrolled?'bg-white':'bg-slate-50'}`}>Mód.</th>
+                        {courses.map(c=><th key={c.id} className={`p-2.5 border-b border-r border-slate-200 text-base font-bold text-slate-700 text-left ${gridScrolled?'bg-white':'bg-slate-50'}`} style={{width:'180px',maxWidth:'180px',minWidth:'160px'}}><span className="block truncate">{c.name}</span></th>)}
                       </tr>
                     </thead>
                     <tbody>
                       {FIXED_PERIODS.map(period=>{
                         if (period.type==='break'||period.type==='separator') return (
                           <tr key={period.id}><td colSpan={courses.length+1}
-                            className={`py-1.5 px-4 text-center text-3xl font-black uppercase tracking-widest border-b
+                            className={`py-1.5 px-4 text-center text-sm font-black uppercase tracking-widest border-b
                               ${period.type==='break'?'bg-slate-50 text-slate-400':'bg-indigo-50 text-indigo-400'}`}>
                             {period.label}
                           </td></tr>
@@ -1621,7 +1610,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                         return (
                           <tr key={period.id} className="group">
                             <td className="p-2 border-b border-r border-slate-100 text-center sticky left-0 bg-white z-10 group-hover:bg-slate-50/70 transition-colors">
-                              <span className={`text-sm font-black block ${period.type==='pe'?'text-emerald-600':'text-indigo-600'}`}>{period.mod}°</span>
+                              <span className={`text-base font-black block ${period.type==='pe'?'text-emerald-600':'text-indigo-600'}`}>{period.mod}°</span>
                               <span className="text-sm text-slate-400 font-bold block leading-tight">{period.start}</span>
                               <span className="text-sm text-slate-400 font-bold block leading-tight">{period.end}</span>
                             </td>
@@ -1641,13 +1630,13 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                                   {cell?(
                                     <div className={`rounded-lg p-2 border h-full transition-all ${dimmed?'opacity-20':''} ${hasConflict?'border-red-300 bg-red-50 text-red-700':'border-slate-200'}`}
                                       style={!hasConflict && teacher?.colorHex ? teacherStyle(teacher.colorHex) : {}}>
-                                      <div className="text-xs font-bold leading-snug truncate overflow-hidden whitespace-nowrap">{subject?.name??<span className="italic text-slate-400">Sin materia</span>}</div>
+                                      <div className="text-sm font-bold leading-snug truncate overflow-hidden whitespace-nowrap">{subject?.name??<span className="italic text-slate-400">Sin materia</span>}</div>
                                       <div className="text-sm opacity-70 font-bold uppercase truncate overflow-hidden whitespace-nowrap mt-0.5">{teacher?.name??<span className="text-slate-300">Sin docente</span>}</div>
                                       {hasConflict&&<div className="flex items-center gap-0.5 mt-1"><AlertTriangle size={8} className="text-red-500 shrink-0"/><span className="text-sm text-red-500 font-bold">Conflicto</span></div>}
                                     </div>
                                   ):(
                                     <div className="rounded-lg p-2 border border-dashed border-transparent hover:border-slate-200 h-full min-h-[44px] flex items-center justify-center">
-                                      <span className="text-slate-200 text-3xl leading-none">+</span>
+                                      <span className="text-slate-200 text-xl leading-none">+</span>
                                     </div>
                                   )}
                                 </td>
@@ -1712,13 +1701,13 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
               <div className="flex items-center justify-between flex-wrap gap-2 pt-1">
                 <h2 className="text-xl font-black text-slate-800">
                   {isTeachers?'Plantel Docente':'Materias'}
-                  <span className="text-slate-400 text-3xl font-bold ml-2">{items.length}</span>
+                  <span className="text-slate-400 text-base font-bold ml-2">{items.length}</span>
                 </h2>
                 <button
                   onClick={()=>isTeachers
                     ?setEditingTeacher({id:`t-${uid()}`,name:'',subject:'',color:'',colorHex:HEX_COLORS[teachers.length%HEX_COLORS.length]})
                     :setEditingSubject({id:'new',name:''})}
-                  className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold text-3xl hover:bg-indigo-700 transition-colors flex items-center gap-2">
+                  className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold text-base hover:bg-indigo-700 transition-colors flex items-center gap-2">
                   <Plus size={13}/>{isTeachers?'Agregar Docente':'Nueva Materia'}
                 </button>
               </div>
@@ -1727,7 +1716,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
               {!isTeachers&&potentialDuplicates.length>0&&(
                 <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center gap-3">
                   <AlertTriangle size={14} className="text-amber-500 shrink-0"/>
-                  <p className="text-xs text-amber-800 font-bold">
+                  <p className="text-sm text-amber-800 font-bold">
                     {potentialDuplicates.length} posible{potentialDuplicates.length!==1?'s duplicados':' duplicado'} — marcados con <span className="text-amber-500">⚠</span>. Seleccionalos y usá <strong>Unificar selección</strong>.
                   </p>
                 </div>
@@ -1738,18 +1727,18 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                 <div className="relative flex-1 min-w-[160px] max-w-xs">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13}/>
                   <input type="text" placeholder={isTeachers?'Buscar docente…':'Buscar materia…'}
-                    className="w-full text-3xl border border-slate-200 rounded-xl pl-9 pr-4 py-2 outline-none focus:ring-2 ring-indigo-100"
+                    className="w-full text-base border border-slate-200 rounded-xl pl-9 pr-4 py-2 outline-none focus:ring-2 ring-indigo-100"
                     value={listSearch} onChange={e=>{setListSearch(e.target.value);setSelectedItems(new Set());}}/>
                 </div>
                 {hasSel&&(
                   <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-1.5">
-                    <span className="text-xs font-black text-indigo-600">{selCount} seleccionado{selCount!==1?'s':''}</span>
+                    <span className="text-sm font-black text-indigo-600">{selCount} seleccionado{selCount!==1?'s':''}</span>
                     <button onClick={openMergeModal} disabled={selCount<2}
-                      className={`flex items-center gap-1 text-3xl font-bold px-2 py-1 rounded-lg transition-colors ${selCount>=2?'text-indigo-700 bg-indigo-100 hover:bg-indigo-200 cursor-pointer':'text-slate-400 bg-slate-100 cursor-not-allowed opacity-60'}`}>
+                      className={`flex items-center gap-1 text-sm font-bold px-2 py-1 rounded-lg transition-colors ${selCount>=2?'text-indigo-700 bg-indigo-100 hover:bg-indigo-200 cursor-pointer':'text-slate-400 bg-slate-100 cursor-not-allowed opacity-60'}`}>
                       <Merge size={11}/>Unificar selección
                     </button>
                     <button onClick={bulkDelete}
-                      className="flex items-center gap-1 text-3xl font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-lg transition-colors">
+                      className="flex items-center gap-1 text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-lg transition-colors">
                       <Trash2 size={11}/>Eliminar
                     </button>
                     <button onClick={()=>setSelectedItems(new Set())} className="text-slate-400 hover:text-slate-600 transition-colors ml-1"><X size={13}/></button>
@@ -1784,7 +1773,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                           className="w-4 h-4 rounded accent-indigo-600 cursor-pointer shrink-0"/>
 
                         {/* avatar with color */}
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border text-3xl font-black text-white"
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border text-base font-black text-white"
                           style={item.colorHex ? teacherAvatarStyle(item.colorHex) : {backgroundColor:'#e2e8f0', borderColor:'#cbd5e1', color:'#64748b'}}>
                           {item.avatar}
                         </div>
@@ -1793,7 +1782,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1 flex-wrap">
                             {item.isDupe&&<AlertTriangle size={11} className="text-amber-400 shrink-0"/>}
-                            <span className="font-bold text-slate-800 text-3xl truncate">{item.name}</span>
+                            <span className="font-bold text-slate-800 text-base truncate">{item.name}</span>
                             <span className={`text-sm font-bold px-1.5 py-0.5 rounded-md shrink-0 ${parseInt(item.badge)===0||item.badge.startsWith('0')?'bg-slate-100 text-slate-400':'bg-indigo-50 text-indigo-600'}`}>
                               {item.badge}
                             </span>
@@ -1830,7 +1819,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                 <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
                   {[['teacher','Docente'],['course','Curso'],['subject','Materia']].map(([val,lbl])=>(
                     <button key={val} onClick={()=>{setReportType(val);setReportSelection('');}}
-                      className={`px-3 py-1.5 rounded-lg text-3xl font-bold transition-all ${reportType===val?'bg-white text-indigo-600 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>{lbl}</button>
+                      className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${reportType===val?'bg-white text-indigo-600 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>{lbl}</button>
                   ))}
                 </div>
               </div>
@@ -1860,28 +1849,28 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
               <div className="space-y-4 max-w-2xl mx-auto">
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
                   <div>
-                    <h2 className="text-lg font-black text-slate-800">Importar Horario</h2>
-                    <p className="text-sm text-slate-500 mt-1">Pegá el contenido del CSV. Antes de guardar, podrás ver una tabla de preview completa para verificar que todo esté bien.</p>
+                    <h2 className="text-xl font-black text-slate-800">Importar Horario</h2>
+                    <p className="text-base text-slate-500 mt-1">Pegá el contenido del CSV. Antes de guardar, podrás ver una tabla de preview completa para verificar que todo esté bien.</p>
                   </div>
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-1">
                     <p className="text-sm font-black text-slate-400 uppercase mb-2">Formato esperado</p>
                     {['LUNES,1A,1B,1C,1D','1,Matemática,Lengua,Historia,Biología',',García Juan,López María,Pérez Ana,Torres Luis','2,Física,Matemática,Arte,Química',',Romero Pedro,García Juan,Díaz Rosa,Vega Omar','… (repetir para cada día)'].map((line,i)=>(
-                      <div key={i} className={`text-xs font-mono ${line.startsWith('…')?'text-slate-400 italic':'text-slate-600'}`}>{line}</div>
+                      <div key={i} className={`text-sm font-mono ${line.startsWith('…')?'text-slate-400 italic':'text-slate-600'}`}>{line}</div>
                     ))}
                     <p className="text-sm text-slate-400 mt-2 pt-2 border-t border-slate-200">La fila de docentes debe empezar con una coma.</p>
                   </div>
                   <textarea value={csvContent} onChange={e=>setCsvContent(e.target.value)}
                     placeholder="Pegá aquí el contenido CSV…"
-                    className="w-full h-64 text-3xl font-mono border border-slate-200 rounded-xl p-4 outline-none focus:ring-2 ring-indigo-100 resize-y bg-white text-slate-700 placeholder-slate-300"/>
+                    className="w-full h-64 text-sm font-mono border border-slate-200 rounded-xl p-4 outline-none focus:ring-2 ring-indigo-100 resize-y bg-white text-slate-700 placeholder-slate-300"/>
                   <div className="flex justify-end gap-3 flex-wrap">
                     {(courses.length>0||teachers.length>0)&&(
                       <button onClick={()=>{if(window.confirm('¿Eliminar todos los datos del horario?')){setCourses([]);setTeachers([]);setSubjects([]);setSchedule({});saveAll([],[],[],{},lastReport);showMsg('Datos eliminados.');}}}
-                        className="px-4 py-2.5 rounded-xl font-bold text-3xl border border-red-200 text-red-500 hover:bg-red-50 transition-colors flex items-center gap-2">
+                        className="px-4 py-2.5 rounded-xl font-bold text-base border border-red-200 text-red-500 hover:bg-red-50 transition-colors flex items-center gap-2">
                         <Trash2 size={13}/>Limpiar Todo
                       </button>
                     )}
                     <button onClick={handleAnalyze} disabled={!csvContent.trim()}
-                      className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold text-3xl hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2">
+                      className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold text-base hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2">
                       <Eye size={13}/>Analizar y Previsualizar
                     </button>
                   </div>
@@ -1900,7 +1889,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
                 <h2 className="text-xl font-black text-slate-800">Alertas y Reportes</h2>
-                {lastReport&&<p className="text-xs text-slate-400 font-medium mt-0.5">Última importación: {lastReport.date}</p>}
+                {lastReport&&<p className="text-sm text-slate-400 font-medium mt-0.5">Última importación: {lastReport.date}</p>}
               </div>
             </div>
             {/* Historial de cambios — arriba, mismo estilo que deduped */}
@@ -1908,15 +1897,15 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
               <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                 <div className="flex items-center gap-2">
                   <FileText size={15} className="text-slate-400"/>
-                  <span className="text-sm font-black text-slate-600">Historial de cambios ({changeLog.length})</span>
+                  <span className="text-base font-black text-slate-600">Historial de cambios ({changeLog.length})</span>
                 </div>
-                {changeLog.length>0&&<button onClick={()=>{ setChangeLog([]); saveAll(courses, teachers, subjects, schedule, lastReport, mappings, [], acknowledgedConflicts); }} className="text-xs text-slate-400 hover:text-red-500 transition-colors font-bold">Limpiar</button>}
+                {changeLog.length>0&&<button onClick={()=>{ setChangeLog([]); saveAll(courses, teachers, subjects, schedule, lastReport, mappings, [], acknowledgedConflicts); }} className="text-sm text-slate-400 hover:text-red-500 transition-colors font-bold">Limpiar</button>}
               </div>
               <div className="divide-y divide-slate-100 overflow-y-auto" style={{maxHeight:'240px'}}>
                 {changeLog.length===0
-                  ? <div className="px-4 py-2.5 text-3xl text-slate-400">Sin cambios registrados aún.</div>
+                  ? <div className="px-4 py-2.5 text-base text-slate-400">Sin cambios registrados aún.</div>
                   : changeLog.map(entry=>(
-                    <div key={entry.id} className="px-4 py-2.5 flex items-center gap-2 text-2xl">
+                    <div key={entry.id} className="px-4 py-2.5 flex items-center gap-2 text-base">
                       <span className="text-slate-400 shrink-0 font-mono">{entry.date} {entry.ts}</span>
                       <ArrowRight size={10} className="text-slate-300 shrink-0"/>
                       <span className="text-blue-600 font-bold shrink-0">{entry.action}</span>
@@ -1967,7 +1956,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                 }
               </div>
               <div className="flex-1">
-                <p className={`font-black text-3xl ${fbConfig && fbStatus==='error' ? 'text-red-700' : 'text-slate-800'}`}>
+                <p className={`font-black text-base ${fbConfig && fbStatus==='error' ? 'text-red-700' : 'text-slate-800'}`}>
                   {!fbConfig
                     ? 'Sin Firebase — usando almacenamiento local'
                     : fbStatus==='connected'  ? 'Conectado a Firebase'
@@ -1975,7 +1964,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                     : fbStatus==='error'      ? '⚠ Error de conexión — revisá las reglas de Firestore'
                     : 'Firebase configurado'}
                 </p>
-                <p className={`text-xs font-medium mt-0.5 ${fbConfig && fbStatus==='error' ? 'text-red-500' : 'text-slate-500'}`}>
+                <p className={`text-sm font-medium mt-0.5 ${fbConfig && fbStatus==='error' ? 'text-red-500' : 'text-slate-500'}`}>
                   {fbConfig
                     ? `Proyecto: ${fbConfig.projectId}${fbStatus==='error' ? ' · Causa probable: reglas de Firestore no permiten acceso anónimo' : ''}`
                     : 'Los datos solo se guardan en tu navegador.'}
@@ -1983,7 +1972,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
               </div>
               {fbConfig&&(
                 <button onClick={handleDisconnectFirebase}
-                  className="text-xs font-bold text-red-500 hover:text-red-700 border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors shrink-0">
+                  className="text-sm font-bold text-red-500 hover:text-red-700 border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors shrink-0">
                   Desconectar
                 </button>
               )}
@@ -2011,13 +2000,13 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                   {/* header */}
                   <div className="px-5 pt-5 pb-3 border-b border-slate-100 flex items-start justify-between gap-3">
                     <div>
-                      <h3 className="font-black text-slate-800 text-2xl">Correcciones aprendidas</h3>
-                      <p className="text-xs text-slate-500 mt-0.5">Se aplican automáticamente en cada importación.</p>
+                      <h3 className="font-black text-slate-800 text-lg">Correcciones aprendidas</h3>
+                      <p className="text-sm text-slate-500 mt-0.5">Se aplican automáticamente en cada importación.</p>
                     </div>
                     {totalEntries > 0 && (
                       <button
                         onClick={() => { const m={teachers:{},subjects:{}}; setMappings(m); saveAll(courses,teachers,subjects,schedule,lastReport,m); showMsg('Correcciones eliminadas.'); }}
-                        className="text-xs font-bold text-red-500 border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors shrink-0">
+                        className="text-sm font-bold text-red-500 border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors shrink-0">
                         Limpiar todo
                       </button>
                     )}
@@ -2026,7 +2015,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                   <div className="flex border-b border-slate-100 bg-slate-50/60 px-3 pt-2 gap-1">
                     {subTabs.map(st => (
                       <button key={st.id} onClick={() => setConfigSubTab(st.id)}
-                        className={`px-3 py-1.5 text-3xl font-bold rounded-t-lg transition-all border-b-2 flex items-center gap-1.5
+                        className={`px-3 py-1.5 text-sm font-bold rounded-t-lg transition-all border-b-2 flex items-center gap-1.5
                           ${configSubTab === st.id
                             ? 'border-indigo-500 text-indigo-600 bg-white shadow-sm'
                             : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
@@ -2041,8 +2030,8 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                   <div className="overflow-y-auto" style={{maxHeight:'240px'}}>
                     {activeEntries.length === 0 ? (
                       <div className="px-5 py-8 text-center">
-                        <p className="text-sm text-slate-400 font-medium">Sin correcciones registradas aún.</p>
-                        <p className="text-xs text-slate-300 mt-1">Se generan al importar, unificar o renombrar.</p>
+                        <p className="text-base text-slate-400 font-medium">Sin correcciones registradas aún.</p>
+                        <p className="text-sm text-slate-300 mt-1">Se generan al importar, unificar o renombrar.</p>
                       </div>
                     ) : (
                       <div className="divide-y divide-slate-100">
@@ -2053,9 +2042,9 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                                 {entry.type==='subjects'?'MAT':'DOC'}
                               </span>
                             )}
-                            <span className="text-xs text-slate-500 font-mono flex-1 truncate line-through opacity-60">{entry.from}</span>
+                            <span className="text-sm text-slate-500 font-mono flex-1 truncate line-through opacity-60">{entry.from}</span>
                             <ArrowRight size={11} className="text-slate-300 shrink-0"/>
-                            <span className="text-xs font-bold text-slate-800 flex-1 truncate">{entry.to}</span>
+                            <span className="text-sm font-bold text-slate-800 flex-1 truncate">{entry.to}</span>
                             <button
                               onClick={() => { const newMaps={...mappings,[entry.type]:{...mappings[entry.type]}}; delete newMaps[entry.type][entry.from]; setMappings(newMaps); saveAll(courses,teachers,subjects,schedule,lastReport,newMaps); }}
                               className="text-slate-300 hover:text-red-400 transition-colors shrink-0 ml-1"><X size={13}/></button>
@@ -2071,8 +2060,8 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
             {/* Guide */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
               <div>
-                <h3 className="font-black text-slate-800 text-2xl">Cómo conectar Firebase (gratis)</h3>
-                <p className="text-sm text-slate-500 mt-1">Una vez configurado, todos los que usen esta app verán y editarán los mismos datos en tiempo real.</p>
+                <h3 className="font-black text-slate-800 text-lg">Cómo conectar Firebase (gratis)</h3>
+                <p className="text-base text-slate-500 mt-1">Una vez configurado, todos los que usen esta app verán y editarán los mismos datos en tiempo real.</p>
               </div>
               {[
                 {n:1,title:'Crear cuenta y proyecto en Firebase',body:'Entrá a firebase.google.com y hacé click en "Comenzar". Iniciá sesión con una cuenta Google. Luego "Crear un proyecto", dale un nombre y completá el asistente.',link:'https://firebase.google.com',linkLabel:'Ir a Firebase →'},
@@ -2082,11 +2071,11 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                 {n:5,title:'Pegar la configuración aquí abajo y conectar',body:'Pegá el objeto firebaseConfig en el campo de abajo y hacé click en Conectar.'},
               ].map(step=>(
                 <div key={step.n} className="flex gap-4">
-                  <div className="w-7 h-7 rounded-full bg-indigo-600 text-white text-3xl font-black flex items-center justify-center shrink-0 mt-0.5">{step.n}</div>
+                  <div className="w-7 h-7 rounded-full bg-indigo-600 text-white text-sm font-black flex items-center justify-center shrink-0 mt-0.5">{step.n}</div>
                   <div className="flex-1">
-                    <p className="font-bold text-slate-800 text-2xl">{step.title}</p>
-                    <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{step.body}</p>
-                    {step.link&&(<a href={step.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-3xl text-indigo-600 font-bold mt-1 hover:underline">{step.linkLabel}<ExternalLink size={10}/></a>)}
+                    <p className="font-bold text-slate-800 text-base">{step.title}</p>
+                    <p className="text-sm text-slate-500 mt-0.5 leading-relaxed">{step.body}</p>
+                    {step.link&&(<a href={step.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-indigo-600 font-bold mt-1 hover:underline">{step.linkLabel}<ExternalLink size={10}/></a>)}
                   </div>
                 </div>
               ))}
@@ -2098,11 +2087,11 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                 <label className="text-sm font-black text-slate-500 uppercase tracking-wide block mb-1.5">Pegá tu firebaseConfig aquí</label>
                 <textarea value={fbConfigText} onChange={e=>{setFbConfigText(e.target.value);setFbConfigErr('');}}
                   placeholder={`{\n  "apiKey": "AIza...",\n  "authDomain": "tu-proyecto.firebaseapp.com",\n  "projectId": "tu-proyecto",\n  "storageBucket": "tu-proyecto.appspot.com",\n  "messagingSenderId": "123456789",\n  "appId": "1:123...:web:abc..."\n}`}
-                  className="w-full h-52 text-3xl font-mono border border-slate-200 rounded-xl p-4 outline-none focus:ring-2 ring-indigo-100 resize-none bg-slate-50 text-slate-700 placeholder-slate-300"/>
+                  className="w-full h-52 text-sm font-mono border border-slate-200 rounded-xl p-4 outline-none focus:ring-2 ring-indigo-100 resize-none bg-slate-50 text-slate-700 placeholder-slate-300"/>
                 {fbConfigErr&&(
                   <div className="mt-2 flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
                     <AlertCircle size={13} className="text-red-500 shrink-0 mt-0.5"/>
-                    <p className="text-xs text-red-700 font-medium">{fbConfigErr}</p>
+                    <p className="text-sm text-red-700 font-medium">{fbConfigErr}</p>
                   </div>
                 )}
               </div>
@@ -2112,7 +2101,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
               </div>
               <div className="flex gap-3">
                 <button onClick={handleConnectFirebase} disabled={!fbConfigText.trim()}
-                  className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-bold text-3xl hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
+                  className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-bold text-base hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
                   <Database size={15}/>Conectar a Firebase
                 </button>
               </div>
@@ -2149,11 +2138,11 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
             </div>
             <div className="flex gap-3 pt-1">
               <button onClick={()=>saveCell(editingCell.key,{teacherId:'',subjectId:''})}
-                className="flex-1 py-2.5 rounded-xl font-bold text-3xl border border-red-200 text-red-500 hover:bg-red-50 transition-colors flex items-center justify-center gap-2">
+                className="flex-1 py-2.5 rounded-xl font-bold text-base border border-red-200 text-red-500 hover:bg-red-50 transition-colors flex items-center justify-center gap-2">
                 <Trash2 size={13}/>Borrar
               </button>
               <button onClick={()=>saveCell(editingCell.key,{teacherId:editingCell.teacherId,subjectId:editingCell.subjectId})}
-                className="flex-[2] bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-3xl hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">
+                className="flex-[2] bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-base hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">
                 <Check size={13}/>Guardar
               </button>
             </div>
@@ -2173,7 +2162,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
             <div>
               <label className="text-sm font-black text-slate-500 uppercase block mb-1.5">Nombre completo</label>
               <input type="text" value={editingTeacher.name} onChange={e=>setEditingTeacher(p=>({...p,name:e.target.value}))}
-                placeholder="Apellido, Nombre" className="w-full text-3xl border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 ring-indigo-100"/>
+                placeholder="Apellido, Nombre" className="w-full text-base border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 ring-indigo-100"/>
             </div>
             <div>
               <label className="text-sm font-black text-slate-500 uppercase block mb-2">Color</label>
@@ -2184,18 +2173,18 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                   onChange={e=>setEditingTeacher(p=>({...p, colorHex: e.target.value, color: ''}))}
                   className="w-12 h-12 rounded-xl border-2 border-slate-200 cursor-pointer p-0.5 hover:border-slate-400 transition-colors"
                 />
-                <div className="w-12 h-12 rounded-xl border-2 flex items-center justify-center text-3xl font-black text-white shadow-sm"
+                <div className="w-12 h-12 rounded-xl border-2 flex items-center justify-center text-xl font-black text-white shadow-sm"
                   style={{backgroundColor: editingTeacher.colorHex || '#6366f1', borderColor: editingTeacher.colorHex || '#6366f1'}}>
                   {editingTeacher.name?.charAt(0)?.toUpperCase() || '?'}
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-slate-700">{editingTeacher.name || 'Docente'}</p>
+                  <p className="text-sm font-bold text-slate-700">{editingTeacher.name || 'Docente'}</p>
                   <p className="text-sm text-slate-400 font-mono mt-0.5">{editingTeacher.colorHex || '#6366f1'}</p>
                 </div>
               </div>
             </div>
             <button onClick={()=>{if(editingTeacher.name.trim())saveTeacher(editingTeacher);}} disabled={!editingTeacher.name.trim()}
-              className="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-3xl hover:bg-indigo-700 disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
+              className="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-base hover:bg-indigo-700 disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
               <Check size={13}/>Guardar Docente
             </button>
           </div>
@@ -2214,13 +2203,13 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
             <div>
               <label className="text-sm font-black text-slate-500 uppercase block mb-1.5">Nombre</label>
               <input autoFocus type="text" value={editingSubject.name} onChange={e=>setEditingSubject(p=>({...p,name:e.target.value}))}
-                placeholder="Ej: Matemática" className="w-full text-3xl border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 ring-indigo-100"/>
+                placeholder="Ej: Matemática" className="w-full text-base border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 ring-indigo-100"/>
               {editingSubject.id!=='new'&&<p className="text-sm text-slate-400 mt-1.5">El cambio se aplica en todas las celdas del horario automáticamente.</p>}
             </div>
             <button
               onClick={()=>{ if(!editingSubject.name.trim())return; editingSubject.id==='new'?addSubject(editingSubject.name):renameSubject(editingSubject.id,editingSubject.name); }}
               disabled={!editingSubject.name.trim()}
-              className="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-3xl hover:bg-indigo-700 disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
+              className="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-base hover:bg-indigo-700 disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
               <Check size={13}/>{editingSubject.id==='new'?'Crear':'Guardar'}
             </button>
           </div>
@@ -2234,13 +2223,13 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-5">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-black text-slate-800 text-2xl">Unificar {mergeModal.isTeachers?'docentes':'materias'}</h3>
-                <p className="text-xs text-slate-400 font-medium mt-0.5">{mergeModal.items.length} elementos seleccionados</p>
+                <h3 className="font-black text-slate-800 text-lg">Unificar {mergeModal.isTeachers?'docentes':'materias'}</h3>
+                <p className="text-sm text-slate-400 font-medium mt-0.5">{mergeModal.items.length} elementos seleccionados</p>
               </div>
               <button onClick={()=>setMergeModal(null)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400"><X size={16}/></button>
             </div>
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-              <p className="text-xs text-amber-800 font-medium">Elegí el nombre que querés <strong>conservar</strong>. Los demás quedarán eliminados y todas sus asignaciones se reasignarán automáticamente.</p>
+              <p className="text-sm text-amber-800 font-medium">Elegí el nombre que querés <strong>conservar</strong>. Los demás quedarán eliminados y todas sus asignaciones se reasignarán automáticamente.</p>
             </div>
             <div>
               <p className="text-sm font-black text-slate-500 uppercase tracking-wide mb-2">¿Cuál nombre conservar?</p>
@@ -2251,7 +2240,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                       ${mergeKeepId===it.id?'border-indigo-500 bg-indigo-50':'border-slate-200 hover:border-slate-300 bg-white'}`}>
                     <input type="radio" name="mergeKeepId" value={it.id} checked={mergeKeepId===it.id} onChange={()=>setMergeKeepId(it.id)} className="accent-indigo-600 w-4 h-4 shrink-0"/>
                     <div className="flex-1 min-w-0">
-                      <span className="font-bold text-slate-800 text-3xl block truncate">{it.name}</span>
+                      <span className="font-bold text-slate-800 text-base block truncate">{it.name}</span>
                       {it.subtitle&&<span className="text-sm text-slate-400 font-medium block truncate">{it.subtitle}</span>}
                     </div>
                     {mergeKeepId===it.id&&<Check size={14} className="text-indigo-600 shrink-0"/>}
@@ -2261,7 +2250,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
             </div>
             <div className="flex gap-3 pt-1">
               <button onClick={()=>setMergeModal(null)}
-                className="flex-1 py-2.5 rounded-xl font-bold text-3xl border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
+                className="flex-1 py-2.5 rounded-xl font-bold text-base border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
                 Cancelar
               </button>
               <button onClick={()=>{
@@ -2270,7 +2259,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                   remove.forEach(r=>mergeModal.isTeachers?mergeTeachers(keep,r.id):mergeSubjects(keep,r.id));
                   setMergeModal(null); setSelectedItems(new Set());
                 }}
-                className="flex-[2] bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-3xl hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">
+                className="flex-[2] bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-base hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">
                 <Merge size={14}/>Confirmar unificación
               </button>
             </div>
