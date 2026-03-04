@@ -949,6 +949,16 @@ export default function App() {
   // ── Conflicts ─────────────────────────────────────────────────────────────
   const conflictId = (dayIdx, periodId, teacherId) => `${dayIdx}-${periodId}-${teacherId}`;
 
+  const subjectMap = useMemo(() => new Map(subjects.map(s=>[s.id,s])), [subjects]);
+  const teacherMap2 = useMemo(() => new Map(teachers.map(t=>[t.id,t])), [teachers]);
+
+  const sortedSubjects = useMemo(() =>
+    [...subjects].sort((a,b)=>a.name.localeCompare(b.name,'es')),
+    [subjects]
+  );
+
+  const coursesMap = useMemo(() => new Map(courses.map(c=>[c.id, c])), [courses]);
+
   const { allConflictList } = useMemo(() => {
     // Only depends on schedule+courses for detection; teacher name looked up via teacherMap2
     const list = [];
@@ -1006,8 +1016,6 @@ export default function App() {
 
   // ── Search highlight ──────────────────────────────────────────────────────
   // Pre-build lookup maps so isHighlighted is O(1) per cell instead of O(n)
-  const subjectMap = useMemo(() => new Map(subjects.map(s=>[s.id,s])), [subjects]);
-  const teacherMap2 = useMemo(() => new Map(teachers.map(t=>[t.id,t])), [teachers]);
   const isHighlighted = useCallback((cell) => {
     if (!searchTerm.trim()) return false;
     const term    = ns(searchTerm);
@@ -1449,12 +1457,6 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
     { id:'config',   label:'Config',   icon:<Settings size={13}/> },
   ];
 
-  const sortedSubjects = useMemo(() =>
-    [...subjects].sort((a,b)=>a.name.localeCompare(b.name,'es')),
-    [subjects]
-  );
-
-  const coursesMap = useMemo(() => new Map(courses.map(c=>[c.id, c])), [courses]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   return (
