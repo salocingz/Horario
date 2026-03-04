@@ -204,17 +204,18 @@ function SubjectDropdown({ value, onChange, subjects }) {
 
 
 // ─── Alerts Panel ─────────────────────────────────────────────────────────────
-function AlertsPanel({ report, conflictList = [], onGoToConflict, liveCounts }) {
-  if (!report && conflictList.length === 0) return (
+function AlertsPanel({ report, conflictList = [], allConflictList = [], acknowledgedConflicts = new Set(), onGoToConflict, onAcknowledge, liveCounts }) {
+  if (!report && allConflictList.length === 0) return (
     <div className="flex flex-col items-center justify-center py-20 text-slate-300">
       <Bell size={40} className="mb-3"/>
       <p className="text-slate-400 font-bold text-sm">Sin reportes de importación aún.</p>
     </div>
   );
-  const hasIssues = report && (report.warnings.length > 0 || report.deduped.length > 0 || report.skipped.length > 0);
+  const hasIssues = report && (report.warnings.length > 0 || report.skipped.length > 0);
+  const acknowledgedList = allConflictList.filter(c => acknowledgedConflicts.has(c.id));
   return (
     <div className="space-y-4">
-      {/* Conflict alerts — always shown at top */}
+      {/* Active conflict alerts */}
       {conflictList.length > 0 && (
         <div className="bg-white border border-red-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="p-4 border-b border-red-100 flex items-center gap-2 bg-red-50">
@@ -233,10 +234,43 @@ function AlertsPanel({ report, conflictList = [], onGoToConflict, liveCounts }) 
                     Asignado simultáneamente a: {c.entries.map(e => e.course.name).join(', ')}
                   </p>
                 </div>
-                <button
-                  onClick={() => onGoToConflict(c)}
-                  className="shrink-0 flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors mt-0.5">
-                  <Eye size={11}/>Ver en grilla
+                <div className="flex items-center gap-2 shrink-0 mt-0.5">
+                  <button onClick={() => onGoToConflict(c)}
+                    className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors">
+                    <Eye size={11}/>Ver en grilla
+                  </button>
+                  <button onClick={() => onAcknowledge(c)}
+                    title="Marcar como aceptado — deja de mostrarse como conflicto"
+                    className="flex items-center gap-1.5 text-xs font-bold text-slate-500 bg-slate-100 border border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 px-3 py-1.5 rounded-lg transition-colors">
+                    <CheckCircle2 size={11}/>Aceptar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Acknowledged conflicts */}
+      {acknowledgedList.length > 0 && (
+        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="p-4 border-b border-slate-100 flex items-center gap-2 bg-slate-50">
+            <CheckCircle2 size={15} className="text-emerald-500"/>
+            <span className="text-sm font-black text-slate-500">Conflictos aceptados ({acknowledgedList.length})</span>
+            <span className="text-[10px] text-slate-400 font-medium ml-1">— no se muestran en la grilla</span>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {acknowledgedList.map((c, i) => (
+              <div key={i} className="px-4 py-3 flex items-start justify-between gap-3 opacity-60">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-slate-600 line-through">{c.teacher?.name ?? 'Docente desconocido'}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{c.day} · {c.period.mod}° módulo ({c.period.start}–{c.period.end})</p>
+                  <p className="text-xs text-slate-400 mt-1">{c.entries.map(e => e.course.name).join(', ')}</p>
+                </div>
+                <button onClick={() => onAcknowledge(c)}
+                  title="Reactivar — vuelve a mostrarse como conflicto"
+                  className="flex items-center gap-1.5 text-xs font-bold text-slate-400 bg-white border border-slate-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 px-3 py-1.5 rounded-lg transition-colors shrink-0 mt-0.5">
+                  <X size={11}/>Reactivar
                 </button>
               </div>
             ))}
@@ -276,23 +310,6 @@ function AlertsPanel({ report, conflictList = [], onGoToConflict, liveCounts }) 
                 {report.warnings.map((w,i) => (
                   <div key={i} className="px-4 py-2.5 text-xs text-slate-600 flex items-start gap-2">
                     <span className="text-red-300 mt-0.5 shrink-0">·</span>{w}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {report.deduped.length > 0 && (
-            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-              <div className="p-4 border-b border-slate-100 flex items-center gap-2 bg-amber-50">
-                <Merge size={15} className="text-amber-500"/>
-                <span className="text-sm font-black text-amber-700">Materias unificadas por tildes ({report.deduped.length})</span>
-              </div>
-              <div className="divide-y divide-slate-100 max-h-48 overflow-y-auto">
-                {report.deduped.map((d,i) => (
-                  <div key={i} className="px-4 py-2.5 flex items-center gap-2 text-sm">
-                    <span className="text-slate-400 line-through">{d.from}</span>
-                    <ArrowRight size={10} className="text-slate-300 shrink-0"/>
-                    <span className="font-bold text-slate-700">{d.to}</span>
                   </div>
                 ))}
               </div>
@@ -571,12 +588,14 @@ export default function App() {
   const [lastReport,    setLastReport]    = useState(null);
   const [editingCell,    setEditingCell]    = useState(null);
   const [changeLog,      setChangeLog]      = useState([]);
+  const [acknowledgedConflicts, setAcknowledgedConflicts] = useState(new Set());
   const [editingTeacher, setEditingTeacher] = useState(null);
   const [editingSubject, setEditingSubject] = useState(null);
   const [mergingSubject, setMergingSubject] = useState(null);
   const [mergeModal,     setMergeModal]     = useState(null);
   const [mergeKeepId,    setMergeKeepId]    = useState(null);
   const [listSearch,     setListSearch]     = useState('');
+  const [configSubTab,   setConfigSubTab]   = useState('subjects');
   const [selectedItems,  setSelectedItems]  = useState(new Set());
   const [reportType,      setReportType]      = useState('teacher');
   const [reportSelection, setReportSelection] = useState('');
@@ -585,8 +604,8 @@ export default function App() {
   const [fbConfigErr,  setFbConfigErr]  = useState('');
 
   const { ready: fbReady, status: fbStatus, save: fbSave, subscribe: fbSubscribe } = useFirestore(fbConfig);
-  const latestDataRef = useRef({ courses:[], teachers:[], subjects:[], schedule:{}, lastReport:null, mappings:{ teachers:{}, subjects:{} } });
-  useEffect(() => { latestDataRef.current = { courses, teachers, subjects, schedule, lastReport, mappings }; }, [courses, teachers, subjects, schedule, lastReport, mappings]);
+  const latestDataRef = useRef({ courses:[], teachers:[], subjects:[], schedule:{}, lastReport:null, mappings:{ teachers:{}, subjects:{} }, changeLog:[], acknowledgedConflicts:[] });
+  useEffect(() => { latestDataRef.current = { courses, teachers, subjects, schedule, lastReport, mappings, changeLog, acknowledgedConflicts: [...acknowledgedConflicts] }; }, [courses, teachers, subjects, schedule, lastReport, mappings, changeLog, acknowledgedConflicts]);
   const seededFirebaseRef = useRef(false);
   const pendingWriteRef   = useRef(0); // counts in-flight local writes to Firebase
 
@@ -613,6 +632,8 @@ export default function App() {
         setSchedule(data.schedule  || {});
         setLastReport(data.lastReport || null);
         setMappings(data.mappings  || { teachers:{}, subjects:{} });
+        setChangeLog(data.changeLog || []);
+        setAcknowledgedConflicts(new Set(data.acknowledgedConflicts || []));
         setCloudStatus('saved');
         return;
       }
@@ -625,12 +646,14 @@ export default function App() {
       if (hasLocal && !seededFirebaseRef.current) {
         seededFirebaseRef.current = true;
         fbSave({
-          courses:    local.courses    || [],
-          teachers:   local.teachers   || [],
-          subjects:   local.subjects   || [],
-          schedule:   local.schedule   || {},
-          lastReport: local.lastReport || null,
-          mappings:   local.mappings   || { teachers:{}, subjects:{} },
+          courses:               local.courses               || [],
+          teachers:              local.teachers              || [],
+          subjects:              local.subjects              || [],
+          schedule:              local.schedule              || {},
+          lastReport:            local.lastReport            || null,
+          mappings:              local.mappings              || { teachers:{}, subjects:{} },
+          changeLog:             local.changeLog             || [],
+          acknowledgedConflicts: local.acknowledgedConflicts || [],
         }).catch(() => setCloudStatus('error'));
       } else {
         setCloudStatus('saved');
@@ -657,14 +680,26 @@ export default function App() {
           if (d.schedule)   setSchedule(d.schedule);
           if (d.lastReport) setLastReport(d.lastReport);
           if (d.mappings)   setMappings(d.mappings);
+          if (d.changeLog)  setChangeLog(d.changeLog);
+          if (d.acknowledgedConflicts) setAcknowledgedConflicts(new Set(d.acknowledgedConflicts));
         }
       } catch (_) {}
       setCloudStatus('saved');
     })();
   }, [fbConfig]);
 
-  const saveAll = useCallback(async (c, t, subj, s, report, maps) => {
-    const data = { courses:c, teachers:t, subjects:subj, schedule:s, lastReport:report, mappings: maps ?? mappings };
+  const saveAll = useCallback(async (c, t, subj, s, report, maps, log, ackConflicts) => {
+    const cur = latestDataRef.current;
+    const data = {
+      courses:               c,
+      teachers:              t,
+      subjects:              subj,
+      schedule:              s,
+      lastReport:            report,
+      mappings:              maps         ?? cur.mappings,
+      changeLog:             log          !== undefined ? log               : cur.changeLog,
+      acknowledgedConflicts: ackConflicts !== undefined ? [...ackConflicts] : cur.acknowledgedConflicts,
+    };
     setCloudStatus('syncing');
     try {
       if (fbReady) {
@@ -748,11 +783,16 @@ export default function App() {
     setTimeout(() => setMessage(null), 3000);
   };
 
-  const logChange = (action, detail) => {
-    const ts = new Date().toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  const logChange = useCallback((action, detail) => {
+    const ts   = new Date().toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
     const date = new Date().toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit' });
-    setChangeLog(prev => [{ id: Date.now(), ts, date, action, detail }, ...prev].slice(0, 200));
-  };
+    setChangeLog(prev => {
+      const newLog = [{ id: Date.now(), ts, date, action, detail }, ...prev].slice(0, 200);
+      const { courses: c, teachers: t, subjects: s, schedule: sc, lastReport: lr, mappings: m, acknowledgedConflicts: ack } = latestDataRef.current;
+      saveAll(c, t, s, sc, lr, m, newLog, new Set(ack));
+      return newLog;
+    });
+  }, [saveAll]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -790,7 +830,8 @@ export default function App() {
       return mappings[type]?.[key] || raw;
     };
     const newSchedule = {};
-    const deduped = [];
+    const dedupedSubjects = [];
+    const dedupedTeachers = [];
     const skipped = [];
     let importedCount = 0;
 
@@ -800,7 +841,7 @@ export default function App() {
       const key = nc(name);
       if (subjectByNorm.has(key)) {
         const existing = subjectByNorm.get(key);
-        if (existing.name !== name && !deduped.find(d => d.from === name)) deduped.push({ from: name, to: existing.name });
+        if (existing.name !== name && !dedupedSubjects.find(d => d.from === name)) dedupedSubjects.push({ from: name, to: existing.name });
         return existing;
       }
       const s = { id:`s-${uid()}`, name };
@@ -812,7 +853,11 @@ export default function App() {
       const name = applyMapping(rawName.trim(), 'teachers');
       if (!name || name.length < 2) return null;
       const key = nc(name);
-      if (teacherMap.has(key)) return teacherMap.get(key);
+      if (teacherMap.has(key)) {
+        const existing = teacherMap.get(key);
+        if (existing.name !== name && !dedupedTeachers.find(d => d.from === rawName.trim())) dedupedTeachers.push({ from: rawName.trim(), to: existing.name });
+        return existing;
+      }
       const colorHex = HEX_COLORS[teacherMap.size % HEX_COLORS.length];
       const t = { id:`t-${uid()}`, name, color: '', colorHex, subject:'' };
       teacherMap.set(key, t);
@@ -847,17 +892,26 @@ export default function App() {
       return { ...t, subject: newSubjectList.filter(s=>mySubjIds.has(s.id)).map(s=>s.name).join(', ') };
     });
 
-    const report = { courses: newCourses.length, teachers: newTeacherList.length, subjects: newSubjectList.length, imported: importedCount, warnings, deduped, skipped, date: new Date().toLocaleString('es-AR') };
+    // Learn deduped items as mappings so next import auto-corrects them
+    const newMapsSubjects = { ...mappings.subjects };
+    dedupedSubjects.forEach(d => { const k = nc(d.from); if (!newMapsSubjects[k]) newMapsSubjects[k] = d.to; });
+    const newMapsTeachers = { ...mappings.teachers };
+    dedupedTeachers.forEach(d => { const k = nc(d.from); if (!newMapsTeachers[k]) newMapsTeachers[k] = d.to; });
+    const newMappings = { subjects: newMapsSubjects, teachers: newMapsTeachers };
+
+    const report = { courses: newCourses.length, teachers: newTeacherList.length, subjects: newSubjectList.length, imported: importedCount, warnings, deduped: dedupedSubjects, dedupedTeachers, skipped, date: new Date().toLocaleString('es-AR') };
     setCourses(newCourses); setTeachers(newTeacherList); setSubjects(newSubjectList);
+    setMappings(newMappings);
     pushHistory(newSchedule); setSchedule(newSchedule); setLastReport(report);
-    saveAll(newCourses, newTeacherList, newSubjectList, newSchedule, report);
+    saveAll(newCourses, newTeacherList, newSubjectList, newSchedule, report, newMappings);
     setCsvContent(''); setParsedPreview(null); setImportStep('input');
     setActiveTab('alerts'); showMsg('Importación completada.'); logChange('Importación CSV', `${newCourses.length} cursos, ${newTeacherList.length} docentes, ${importedCount} módulos`);
   };
 
   // ── Conflicts ─────────────────────────────────────────────────────────────
-  const { conflictKeys, conflictList } = useMemo(() => {
-    const keys = new Set();
+  const conflictId = (dayIdx, periodId, teacherId) => `${dayIdx}-${periodId}-${teacherId}`;
+
+  const { allConflictList } = useMemo(() => {
     const list = [];
     DAYS.forEach((day, dayIdx) => {
       FIXED_PERIODS.filter(p => p.type==='class'||p.type==='pe').forEach(period => {
@@ -871,17 +925,45 @@ export default function App() {
         });
         byTeacher.forEach((entries, teacherId) => {
           if (entries.length < 2) return;
-          entries.forEach(e => keys.add(e.key));
           const teacher = teachers.find(t => t.id === teacherId);
-          list.push({ teacher, day, dayIdx, period, entries });
+          list.push({ id: conflictId(dayIdx, period.id, teacherId), teacher, day, dayIdx, period, entries });
         });
       });
     });
     list.sort((a,b) => a.dayIdx - b.dayIdx || a.period.mod - b.period.mod);
-    return { conflictKeys: keys, conflictList: list };
+    return { allConflictList: list };
   }, [schedule, courses, teachers]);
+
+  const conflictList = useMemo(() =>
+    allConflictList.filter(c => !acknowledgedConflicts.has(c.id)),
+    [allConflictList, acknowledgedConflicts]
+  );
+
+  const conflictKeys = useMemo(() => {
+    const keys = new Set();
+    conflictList.forEach(c => c.entries.forEach(e => keys.add(e.key)));
+    return keys;
+  }, [conflictList]);
+
   const conflicts     = conflictKeys;
   const conflictPairs = conflictList.length;
+
+  const toggleAcknowledgeConflict = useCallback((conflict) => {
+    setAcknowledgedConflicts(prev => {
+      const next = new Set(prev);
+      const wasAck = next.has(conflict.id);
+      wasAck ? next.delete(conflict.id) : next.add(conflict.id);
+      const { courses: c, teachers: t, subjects: s, schedule: sc, lastReport: lr, mappings: m, changeLog: cl } = latestDataRef.current;
+      const ts   = new Date().toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+      const date = new Date().toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit' });
+      const action = wasAck ? 'Conflicto reactivado' : 'Conflicto aceptado';
+      const detail = `${conflict.teacher?.name ?? 'Docente ?'} · ${conflict.day} Mód.${conflict.period.mod}° (${conflict.entries.map(e=>e.course.name).join(', ')})`;
+      const newLog = [{ id: Date.now(), ts, date, action, detail }, ...cl].slice(0, 200);
+      setChangeLog(newLog);
+      saveAll(c, t, s, sc, lr, m, newLog, next);
+      return next;
+    });
+  }, [saveAll]);
 
   // ── Search highlight ──────────────────────────────────────────────────────
   const isHighlighted = useCallback((cell) => {
@@ -935,17 +1017,28 @@ export default function App() {
   };
   const saveTeacher = t => {
     const isNew = !teachers.find(x=>x.id===t.id);
+    const oldName = !isNew ? teachers.find(x=>x.id===t.id)?.name : null;
     const nt = isNew ? [...teachers, t] : teachers.map(x=>x.id===t.id?t:x);
-    setTeachers(nt); saveAll(courses, nt, subjects, schedule, lastReport); setEditingTeacher(null);
+    // Learn mapping if teacher was renamed
+    const newMaps = (!isNew && oldName && nc(oldName) !== nc(t.name))
+      ? { ...mappings, teachers: { ...mappings.teachers, [nc(oldName)]: t.name } }
+      : mappings;
+    if (!isNew && oldName && nc(oldName) !== nc(t.name)) setMappings(newMaps);
+    setTeachers(nt); saveAll(courses, nt, subjects, schedule, lastReport, newMaps); setEditingTeacher(null);
     logChange(isNew ? 'Docente creado' : 'Docente editado', t.name);
   };
 
   // ── Subject CRUD ──────────────────────────────────────────────────────────
   const renameSubject = (id, newName) => {
     const t = newName.trim(); if (!t) return;
-    const ns2 = subjects.map(s => s.id===id ? {...s, name:t} : s);
     const oldName = subjects.find(s=>s.id===id)?.name;
-    setSubjects(ns2); saveAll(courses, teachers, ns2, schedule, lastReport);
+    const ns2 = subjects.map(s => s.id===id ? {...s, name:t} : s);
+    // Learn mapping: old normalized name → new name, so future imports auto-correct
+    const newMaps = oldName && nc(oldName) !== nc(t)
+      ? { ...mappings, subjects: { ...mappings.subjects, [nc(oldName)]: t } }
+      : mappings;
+    if (oldName && nc(oldName) !== nc(t)) setMappings(newMaps);
+    setSubjects(ns2); saveAll(courses, teachers, ns2, schedule, lastReport, newMaps);
     setEditingSubject(null); showMsg('Materia renombrada.'); logChange('Materia renombrada', `${oldName} → ${t}`);
   };
   const deleteSubject = id => {
@@ -1439,9 +1532,9 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                   onScroll={e=>setGridScrolled(e.currentTarget.scrollTop>4)}>
                   <table className="w-full border-separate border-spacing-0 table-fixed">
                     <thead className="sticky top-0 z-20">
-                      <tr className={gridScrolled?'bg-slate-200':'bg-slate-50'} style={{transition:'background 0.2s'}}>
-                        <th className="p-2.5 border-b border-r border-slate-200 text-[10px] font-bold text-slate-500 uppercase w-16 sticky left-0 bg-slate-50 z-30">Mód.</th>
-                        {courses.map(c=><th key={c.id} className="p-2.5 border-b border-r border-slate-200 text-[11px] font-bold text-slate-700 text-left" style={{width:'140px',maxWidth:'140px',minWidth:'140px'}}><span className="block truncate">{c.name}</span></th>)}
+                      <tr className={gridScrolled?'bg-white shadow-sm':'bg-slate-50'} style={{transition:'background 0.2s'}}>
+                        <th className={`p-2.5 border-b border-r border-slate-200 text-[10px] font-bold text-slate-500 uppercase w-16 sticky left-0 z-30 ${gridScrolled?'bg-white':'bg-slate-50'}`}>Mód.</th>
+                        {courses.map(c=><th key={c.id} className={`p-2.5 border-b border-r border-slate-200 text-[11px] font-bold text-slate-700 text-left ${gridScrolled?'bg-white':'bg-slate-50'}`} style={{width:'140px',maxWidth:'140px',minWidth:'140px'}}><span className="block truncate">{c.name}</span></th>)}
                       </tr>
                     </thead>
                     <tbody>
@@ -1541,8 +1634,10 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
 
           return(
             <div className="space-y-3">
+              {/* sticky top bar */}
+              <div className="sticky top-[57px] z-30 bg-slate-50 pb-2 space-y-2" style={{boxShadow:'0 2px 8px -2px rgba(0,0,0,0.06)'}}>
               {/* header */}
-              <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center justify-between flex-wrap gap-2 pt-1">
                 <h2 className="text-xl font-black text-slate-800">
                   {isTeachers?'Plantel Docente':'Materias'}
                   <span className="text-slate-400 text-sm font-bold ml-2">{items.length}</span>
@@ -1589,6 +1684,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                   </div>
                 )}
               </div>
+              </div>{/* end sticky */}
 
               {/* list */}
               {filtered.length===0?(
@@ -1668,13 +1764,17 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
               </div>
               <div className="flex-1 min-w-[180px]">
                 <label className="text-[10px] font-black text-slate-500 uppercase block mb-1.5">{reportType==='teacher'?'Docente':reportType==='course'?'Curso':'Materia'}</label>
-                <select value={reportSelection} onChange={e=>setReportSelection(e.target.value)}
-                  className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 ring-indigo-100 bg-white font-bold text-slate-700">
-                  <option value="">— Seleccionar —</option>
-                  {reportType==='teacher'&&[...teachers].sort((a,b)=>a.name.localeCompare(b.name,'es')).map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
-                  {reportType==='course'&&courses.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-                  {reportType==='subject'&&[...subjects].sort((a,b)=>a.name.localeCompare(b.name,'es')).map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
+                <SearchableDropdown
+                  value={reportSelection}
+                  onChange={v => setReportSelection(v)}
+                  items={
+                    reportType==='teacher' ? [...teachers].sort((a,b)=>a.name.localeCompare(b.name,'es')) :
+                    reportType==='course'  ? courses :
+                    [...subjects].sort((a,b)=>a.name.localeCompare(b.name,'es'))
+                  }
+                  placeholder="— Seleccionar —"
+                  emptyLabel="— Seleccionar —"
+                />
               </div>
             </div>
             {renderReport()}
@@ -1738,7 +1838,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                   <FileText size={15} className="text-slate-400"/>
                   <span className="text-sm font-black text-slate-600">Historial de cambios ({changeLog.length})</span>
                 </div>
-                {changeLog.length>0&&<button onClick={()=>setChangeLog([])} className="text-xs text-slate-400 hover:text-red-500 transition-colors font-bold">Limpiar</button>}
+                {changeLog.length>0&&<button onClick={()=>{ setChangeLog([]); saveAll(courses, teachers, subjects, schedule, lastReport, mappings, [], acknowledgedConflicts); }} className="text-xs text-slate-400 hover:text-red-500 transition-colors font-bold">Limpiar</button>}
               </div>
               <div className="divide-y divide-slate-100 overflow-y-auto" style={{maxHeight:'240px'}}>
                 {changeLog.length===0
@@ -1758,6 +1858,9 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
             <AlertsPanel
               report={lastReport}
               conflictList={conflictList}
+              allConflictList={allConflictList}
+              acknowledgedConflicts={acknowledgedConflicts}
+              onAcknowledge={toggleAcknowledgeConflict}
               liveCounts={{ courses: courses.length, teachers: teachers.length, subjects: subjects.length, modules: Object.keys(schedule).length }}
               onGoToConflict={(c) => {
                 setSearchTerm(c.teacher?.name || '');
@@ -1814,43 +1917,84 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
               )}
             </div>
 
-            {/* Learned mappings */}
-            {(Object.keys(mappings.teachers).length > 0 || Object.keys(mappings.subjects).length > 0) && (
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-black text-slate-800 text-base">Correcciones aprendidas</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">Se aplican automáticamente en cada importación.</p>
+            {/* Correcciones aprendidas — siempre visible, con sub-pestañas */}
+            {(() => {
+              const subjectEntries = Object.entries(mappings.subjects || {});
+              const teacherEntries = Object.entries(mappings.teachers || {});
+              const totalEntries   = subjectEntries.length + teacherEntries.length;
+              const subTabs = [
+                { id:'subjects', label:'Materias c/ tilde', count: subjectEntries.length },
+                { id:'teachers', label:'Docentes unificados', count: teacherEntries.length },
+                { id:'all',      label:'Todas', count: totalEntries },
+              ];
+              const activeEntries =
+                configSubTab === 'subjects' ? subjectEntries.map(([from,to])=>({ from, to, type:'subjects' })) :
+                configSubTab === 'teachers' ? teacherEntries.map(([from,to])=>({ from, to, type:'teachers' })) :
+                [
+                  ...subjectEntries.map(([from,to])=>({ from, to, type:'subjects' })),
+                  ...teacherEntries.map(([from,to])=>({ from, to, type:'teachers' })),
+                ];
+              return (
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  {/* header */}
+                  <div className="px-5 pt-5 pb-3 border-b border-slate-100 flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="font-black text-slate-800 text-base">Correcciones aprendidas</h3>
+                      <p className="text-xs text-slate-500 mt-0.5">Se aplican automáticamente en cada importación.</p>
+                    </div>
+                    {totalEntries > 0 && (
+                      <button
+                        onClick={() => { const m={teachers:{},subjects:{}}; setMappings(m); saveAll(courses,teachers,subjects,schedule,lastReport,m); showMsg('Correcciones eliminadas.'); }}
+                        className="text-xs font-bold text-red-500 border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors shrink-0">
+                        Limpiar todo
+                      </button>
+                    )}
                   </div>
-                  <button
-                    onClick={() => { const m={teachers:{},subjects:{}}; setMappings(m); saveAll(courses,teachers,subjects,schedule,lastReport,m); showMsg('Correcciones eliminadas.'); }}
-                    className="text-xs font-bold text-red-500 border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors">
-                    Limpiar todo
-                  </button>
-                </div>
-                {[['teachers','Docentes'],['subjects','Materias']].map(([type, label]) => {
-                  const entries = Object.entries(mappings[type] || {});
-                  if (!entries.length) return null;
-                  return (
-                    <div key={type}>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wide mb-2">{label} ({entries.length})</p>
-                      <div className="bg-slate-50 rounded-xl overflow-hidden divide-y divide-slate-100">
-                        {entries.map(([from, to]) => (
-                          <div key={from} className="flex items-center gap-3 px-4 py-2.5">
-                            <span className="text-xs text-slate-500 font-mono flex-1 truncate line-through opacity-60">{from}</span>
+                  {/* sub-tabs */}
+                  <div className="flex border-b border-slate-100 bg-slate-50/60 px-3 pt-2 gap-1">
+                    {subTabs.map(st => (
+                      <button key={st.id} onClick={() => setConfigSubTab(st.id)}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-t-lg transition-all border-b-2 flex items-center gap-1.5
+                          ${configSubTab === st.id
+                            ? 'border-indigo-500 text-indigo-600 bg-white shadow-sm'
+                            : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
+                        {st.label}
+                        <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${st.count > 0 ? 'bg-indigo-50 text-indigo-500' : 'bg-slate-100 text-slate-400'}`}>
+                          {st.count}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  {/* content with scrollbar, same height as historial */}
+                  <div className="overflow-y-auto" style={{maxHeight:'240px'}}>
+                    {activeEntries.length === 0 ? (
+                      <div className="px-5 py-8 text-center">
+                        <p className="text-sm text-slate-400 font-medium">Sin correcciones registradas aún.</p>
+                        <p className="text-xs text-slate-300 mt-1">Se generan al importar, unificar o renombrar.</p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-slate-100">
+                        {activeEntries.map(entry => (
+                          <div key={`${entry.type}-${entry.from}`} className="flex items-center gap-3 px-4 py-2.5">
+                            {configSubTab === 'all' && (
+                              <span className={`text-[9px] font-black px-1.5 py-0.5 rounded shrink-0 ${entry.type==='subjects'?'bg-indigo-50 text-indigo-400':'bg-emerald-50 text-emerald-500'}`}>
+                                {entry.type==='subjects'?'MAT':'DOC'}
+                              </span>
+                            )}
+                            <span className="text-xs text-slate-500 font-mono flex-1 truncate line-through opacity-60">{entry.from}</span>
                             <ArrowRight size={11} className="text-slate-300 shrink-0"/>
-                            <span className="text-xs font-bold text-slate-800 flex-1 truncate">{to}</span>
+                            <span className="text-xs font-bold text-slate-800 flex-1 truncate">{entry.to}</span>
                             <button
-                              onClick={() => { const newMaps={...mappings,[type]:{...mappings[type]}}; delete newMaps[type][from]; setMappings(newMaps); saveAll(courses,teachers,subjects,schedule,lastReport,newMaps); }}
+                              onClick={() => { const newMaps={...mappings,[entry.type]:{...mappings[entry.type]}}; delete newMaps[entry.type][entry.from]; setMappings(newMaps); saveAll(courses,teachers,subjects,schedule,lastReport,newMaps); }}
                               className="text-slate-300 hover:text-red-400 transition-colors shrink-0 ml-1"><X size={13}/></button>
                           </div>
                         ))}
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Guide */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
