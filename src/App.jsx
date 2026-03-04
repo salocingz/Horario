@@ -99,53 +99,96 @@ function parseCSV(csvText) {
 }
 
 // ─── Micro-components ─────────────────────────────────────────────────────────
+// Inline spinner SVG — no external dep needed
+function Spinner({ size = 12, className = '' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}
+      style={{animation:'spin 0.7s linear infinite'}}>
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25"/>
+      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
 function CloudDot({ status, fbStatus }) {
-  // status = cloudStatus (save operations: saved/syncing/error/loading)
-  // fbStatus = Firebase connection status (idle/connecting/connected/error)
-  const isConnected = fbStatus === 'connected';
+  const isConnected  = fbStatus === 'connected';
   const isConnecting = fbStatus === 'connecting';
-  const isFbError = fbStatus === 'error';
+  const isFbError    = fbStatus === 'error';
+  const isSyncing    = status === 'syncing';
+  const isJustSaved  = status === 'just-saved';
+  const isError      = status === 'error';
 
   if (isFbError) {
     return (
       <div className="flex items-center gap-1 bg-red-100 border border-red-300 rounded-md px-1.5 py-0.5">
-        <WifiOff size={9} className="text-red-500 shrink-0"/>
-        <span className="text-[9px] font-black text-red-600 uppercase tracking-wider">Sin conexión</span>
+        <WifiOff size={11} className="text-red-500 shrink-0"/>
+        <span className="text-xs font-black text-red-600 uppercase tracking-wider">Sin conexión</span>
       </div>
     );
   }
   if (isConnecting) {
     return (
       <div className="flex items-center gap-1.5">
-        <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"/>
-        <span className="text-[9px] font-bold text-amber-500 uppercase tracking-wider">Conectando…</span>
+        <Spinner size={13} className="text-amber-400"/>
+        <span className="text-xs font-bold text-amber-500 uppercase tracking-wider">Conectando…</span>
       </div>
     );
   }
+
+  // Syncing state — spinner
+  if (isSyncing) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <Spinner size={13} className={isConnected ? 'text-indigo-400' : 'text-amber-400'}/>
+        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Guardando…</span>
+      </div>
+    );
+  }
+
+  // Just saved — animated check in green
+  if (isJustSaved) {
+    return (
+      <div className="flex items-center gap-1.5" style={{animation:'fadeIn 0.2s ease'}}>
+        <div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center">
+          <Check size={9} className="text-white" strokeWidth={3}/>
+        </div>
+        <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Guardado</span>
+      </div>
+    );
+  }
+
+  // Error
+  if (isError) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <div className="w-2 h-2 rounded-full bg-red-400"/>
+        <span className="text-xs font-bold text-red-500 uppercase tracking-wider">Error al guardar</span>
+      </div>
+    );
+  }
+
+  // Idle — connected to Firebase
   if (isConnected) {
     return (
       <div className="flex items-center gap-1.5">
-        <Database size={10} className={status==='syncing'?'text-amber-400 animate-pulse':status==='error'?'text-red-400':'text-emerald-500'}/>
-        <span className={`text-[9px] font-bold uppercase tracking-wider ${status==='error'?'text-red-500':status==='syncing'?'text-amber-500':'text-slate-400'}`}>
-          {status==='syncing'?'Guardando…':status==='error'?'Error al guardar':'Firebase'}
-        </span>
+        <Database size={11} className="text-slate-300"/>
+        <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Firebase</span>
       </div>
     );
   }
-  // Local storage
+
+  // Idle — local storage
   return (
     <div className="flex items-center gap-1.5">
-      <div className={`w-1.5 h-1.5 rounded-full ${status==='syncing'?'bg-amber-400 animate-pulse':status==='error'?'bg-red-400':'bg-emerald-500'}`}/>
-      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-        {status==='syncing'?'Guardando…':status==='error'?'Error':'Local'}
-      </span>
+      <div className="w-2 h-2 rounded-full bg-slate-300"/>
+      <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Local</span>
     </div>
   );
 }
 
 function Badge({ children, color='slate' }) {
   const map = { slate:'bg-slate-100 text-slate-500', indigo:'bg-indigo-50 text-indigo-600', red:'bg-red-50 text-red-600', amber:'bg-amber-50 text-amber-600', emerald:'bg-emerald-50 text-emerald-700' };
-  return <span className={`px-2 py-0.5 rounded-lg text-sm font-bold ${map[color]}`}>{children}</span>;
+  return <span className={`px-2 py-0.5 rounded-lg text-3xl font-bold ${map[color]}`}>{children}</span>;
 }
 
 function SearchableDropdown({ value, onChange, items, placeholder = '— Seleccionar —', emptyLabel = '— Sin asignar —' }) {
@@ -165,7 +208,7 @@ function SearchableDropdown({ value, onChange, items, placeholder = '— Selecci
   return (
     <div ref={ref} className="relative">
       <button type="button" onClick={() => { setOpen(o => !o); setQuery(''); }}
-        className="w-full text-sm border border-slate-200 rounded-xl px-4 py-2.5 bg-white text-left flex items-center justify-between gap-2 hover:border-slate-300 transition-colors outline-none focus:ring-2 ring-indigo-100">
+        className="w-full text-3xl border border-slate-200 rounded-xl px-4 py-2.5 bg-white text-left flex items-center justify-between gap-2 hover:border-slate-300 transition-colors outline-none focus:ring-2 ring-indigo-100">
         <span className={selected ? 'text-slate-800 font-semibold' : 'text-slate-400'}>{selected?.name ?? placeholder}</span>
         <ChevronDown size={14} className={`text-slate-400 transition-transform shrink-0 ${open?'rotate-180':''}`}/>
       </button>
@@ -175,17 +218,17 @@ function SearchableDropdown({ value, onChange, items, placeholder = '— Selecci
             <div className="relative">
               <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"/>
               <input autoFocus type="text" value={query} onChange={e => setQuery(e.target.value)}
-                placeholder="Buscar…" className="w-full text-xs pl-7 pr-3 py-1.5 border border-slate-200 rounded-lg outline-none focus:ring-2 ring-indigo-100"/>
+                placeholder="Buscar…" className="w-full text-3xl pl-7 pr-3 py-1.5 border border-slate-200 rounded-lg outline-none focus:ring-2 ring-indigo-100"/>
             </div>
           </div>
           <div className="max-h-48 overflow-y-auto">
             <button onClick={() => { onChange(''); setOpen(false); }}
-              className="w-full text-left px-4 py-2 text-xs text-slate-400 hover:bg-slate-50 transition-colors">{emptyLabel}</button>
+              className="w-full text-left px-4 py-2 text-3xl text-slate-400 hover:bg-slate-50 transition-colors">{emptyLabel}</button>
             {filtered.length === 0
-              ? <div className="px-4 py-3 text-xs text-slate-400 text-center">Sin resultados</div>
+              ? <div className="px-4 py-3 text-3xl text-slate-400 text-center">Sin resultados</div>
               : filtered.map(s => (
                   <button key={s.id} onClick={() => { onChange(s.id); setOpen(false); }}
-                    className={`w-full text-left px-4 py-2 text-sm transition-colors flex items-center justify-between
+                    className={`w-full text-left px-4 py-2 text-3xl transition-colors flex items-center justify-between
                       ${s.id===value?'bg-indigo-50 text-indigo-700 font-bold':'hover:bg-slate-50 text-slate-700 font-medium'}`}>
                     {s.name}{s.id===value&&<Check size={12}/>}
                   </button>
@@ -208,7 +251,7 @@ function AlertsPanel({ report, conflictList = [], allConflictList = [], acknowle
   if (!report && allConflictList.length === 0) return (
     <div className="flex flex-col items-center justify-center py-20 text-slate-300">
       <Bell size={40} className="mb-3"/>
-      <p className="text-slate-400 font-bold text-sm">Sin reportes de importación aún.</p>
+      <p className="text-slate-400 font-bold text-2xl">Sin reportes de importación aún.</p>
     </div>
   );
   const hasIssues = report && (report.warnings.length > 0 || report.skipped.length > 0);
@@ -236,12 +279,12 @@ function AlertsPanel({ report, conflictList = [], allConflictList = [], acknowle
                 </div>
                 <div className="flex items-center gap-2 shrink-0 mt-0.5">
                   <button onClick={() => onGoToConflict(c)}
-                    className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors">
+                    className="flex items-center gap-1.5 text-3xl font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors">
                     <Eye size={11}/>Ver en grilla
                   </button>
                   <button onClick={() => onAcknowledge(c)}
                     title="Marcar como aceptado — deja de mostrarse como conflicto"
-                    className="flex items-center gap-1.5 text-xs font-bold text-slate-500 bg-slate-100 border border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 px-3 py-1.5 rounded-lg transition-colors">
+                    className="flex items-center gap-1.5 text-3xl font-bold text-slate-500 bg-slate-100 border border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 px-3 py-1.5 rounded-lg transition-colors">
                     <CheckCircle2 size={11}/>Aceptar
                   </button>
                 </div>
@@ -257,7 +300,7 @@ function AlertsPanel({ report, conflictList = [], allConflictList = [], acknowle
           <div className="p-4 border-b border-slate-100 flex items-center gap-2 bg-slate-50">
             <CheckCircle2 size={15} className="text-emerald-500"/>
             <span className="text-sm font-black text-slate-500">Conflictos aceptados ({acknowledgedList.length})</span>
-            <span className="text-[10px] text-slate-400 font-medium ml-1">— no se muestran en la grilla</span>
+            <span className="text-sm text-slate-400 font-medium ml-1">— no se muestran en la grilla</span>
           </div>
           <div className="divide-y divide-slate-100">
             {acknowledgedList.map((c, i) => (
@@ -269,7 +312,7 @@ function AlertsPanel({ report, conflictList = [], allConflictList = [], acknowle
                 </div>
                 <button onClick={() => onAcknowledge(c)}
                   title="Reactivar — vuelve a mostrarse como conflicto"
-                  className="flex items-center gap-1.5 text-xs font-bold text-slate-400 bg-white border border-slate-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 px-3 py-1.5 rounded-lg transition-colors shrink-0 mt-0.5">
+                  className="flex items-center gap-1.5 text-3xl font-bold text-slate-400 bg-white border border-slate-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 px-3 py-1.5 rounded-lg transition-colors shrink-0 mt-0.5">
                   <X size={11}/>Reactivar
                 </button>
               </div>
@@ -290,7 +333,7 @@ function AlertsPanel({ report, conflictList = [], allConflictList = [], acknowle
             ].map(s => (
               <div key={s.label} className={`rounded-2xl p-4 text-center border ${s.color==='emerald'?'bg-emerald-50 border-emerald-100':'bg-indigo-50 border-indigo-100'}`}>
                 <div className={`text-2xl font-black ${s.color==='emerald'?'text-emerald-600':'text-indigo-600'}`}>{s.value}</div>
-                <div className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">{s.label}</div>
+                <div className="text-sm font-bold text-slate-400 uppercase mt-0.5">{s.label}</div>
               </div>
             ))}
           </div>
@@ -308,7 +351,7 @@ function AlertsPanel({ report, conflictList = [], allConflictList = [], acknowle
               </div>
               <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
                 {report.warnings.map((w,i) => (
-                  <div key={i} className="px-4 py-2.5 text-xs text-slate-600 flex items-start gap-2">
+                  <div key={i} className="px-4 py-2.5 text-3xl text-slate-600 flex items-start gap-2">
                     <span className="text-red-300 mt-0.5 shrink-0">·</span>{w}
                   </div>
                 ))}
@@ -323,7 +366,7 @@ function AlertsPanel({ report, conflictList = [], allConflictList = [], acknowle
               </div>
               <div className="divide-y divide-slate-100 max-h-48 overflow-y-auto">
                 {report.skipped.map((s,i) => (
-                  <div key={i} className="px-4 py-2.5 text-xs text-slate-500 flex items-start gap-2">
+                  <div key={i} className="px-4 py-2.5 text-3xl text-slate-500 flex items-start gap-2">
                     <span className="text-slate-300 mt-0.5 shrink-0">·</span>{s}
                   </div>
                 ))}
@@ -360,29 +403,29 @@ function ImportPreview({ parsedPairs, courses, onConfirm, onBack }) {
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
-            <h3 className="font-black text-slate-800 text-base">Vista previa — confirmá antes de guardar</h3>
+            <h3 className="font-black text-slate-800 text-2xl">Vista previa — confirmá antes de guardar</h3>
             <p className="text-xs text-slate-500 mt-1">Revisá que la información sea idéntica a tu archivo.</p>
           </div>
           <div className="flex gap-2 flex-wrap">
             <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-1.5 text-center">
               <div className="text-lg font-black text-emerald-600">{totalOk}</div>
-              <div className="text-[9px] font-bold text-emerald-500 uppercase">Completos</div>
+              <div className="text-xs font-bold text-emerald-500 uppercase">Completos</div>
             </div>
             <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-1.5 text-center">
               <div className="text-lg font-black text-amber-600">{totalNoTeach}</div>
-              <div className="text-[9px] font-bold text-amber-500 uppercase">Sin docente</div>
+              <div className="text-xs font-bold text-amber-500 uppercase">Sin docente</div>
             </div>
             <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-center">
               <div className="text-lg font-black text-slate-400">{totalEmpty}</div>
-              <div className="text-[9px] font-bold text-slate-400 uppercase">Vacíos</div>
+              <div className="text-xs font-bold text-slate-400 uppercase">Vacíos</div>
             </div>
           </div>
         </div>
         <div className="flex gap-2 items-center">
-          <span className="text-[10px] font-black text-slate-400 uppercase">Ver:</span>
+          <span className="text-sm font-black text-slate-400 uppercase">Ver:</span>
           {[['all','Todos'],['issues','Solo con problemas']].map(([v,l]) => (
             <button key={v} onClick={() => setFilter(v)}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${filter===v?'bg-indigo-600 text-white':'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+              className={`px-3 py-1 rounded-lg text-3xl font-bold transition-colors ${filter===v?'bg-indigo-600 text-white':'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
               {l}
             </button>
           ))}
@@ -390,11 +433,11 @@ function ImportPreview({ parsedPairs, courses, onConfirm, onBack }) {
       </div>
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         <div className="overflow-auto" style={{maxHeight:'50vh'}}>
-          <table className="w-full border-collapse text-xs">
+          <table className="w-full border-collapse text-2xl">
             <thead className="sticky top-0 z-10 bg-slate-50">
               <tr>
                 {['Día','Mód.','Curso','Materia (CSV)','Docente (CSV)','Estado'].map(h => (
-                  <th key={h} className="p-3 border-b border-slate-200 text-left text-[10px] font-black text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                  <th key={h} className="p-3 border-b border-slate-200 text-left text-sm font-black text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -427,10 +470,10 @@ function ImportPreview({ parsedPairs, courses, onConfirm, onBack }) {
         </div>
       </div>
       <div className="flex gap-3 justify-end">
-        <button onClick={onBack} className="px-5 py-2.5 rounded-xl font-bold text-sm border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-2">
+        <button onClick={onBack} className="px-5 py-2.5 rounded-xl font-bold text-3xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-2">
           <ChevronLeft size={14}/> Volver y corregir
         </button>
-        <button onClick={onConfirm} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors flex items-center gap-2">
+        <button onClick={onConfirm} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold text-3xl hover:bg-indigo-700 transition-colors flex items-center gap-2">
           <Check size={14}/> Confirmar e Importar
         </button>
       </div>
@@ -519,7 +562,7 @@ function ConflictPanel({ conflicts, onNavigate, onEdit }) {
       <button onClick={() => setOpen(o => !o)}
         className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-100/60 transition-colors text-left">
         <AlertTriangle size={15} className="text-red-500 shrink-0"/>
-        <p className="flex-1 text-sm text-red-700 font-black">
+        <p className="flex-1 text-3xl text-red-700 font-black">
           {conflicts.length} conflicto{conflicts.length !== 1 ? 's' : ''} detectado{conflicts.length !== 1 ? 's' : ''}
           <span className="font-medium ml-1.5">— docente asignado a más de un curso en el mismo módulo</span>
         </p>
@@ -529,7 +572,7 @@ function ConflictPanel({ conflicts, onNavigate, onEdit }) {
         <div className="border-t border-red-200 divide-y divide-red-100">
           {conflicts.map((c, i) => (
             <div key={i} className="px-4 py-3 flex items-start gap-3">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border text-xs font-black mt-0.5 text-white"
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border text-3xl font-black mt-0.5 text-white"
                 style={teacherAvatarStyle(c.teacher?.colorHex)}>
                 {c.teacher?.name?.charAt(0)?.toUpperCase() ?? '?'}
               </div>
@@ -542,14 +585,14 @@ function ConflictPanel({ conflicts, onNavigate, onEdit }) {
                   {c.entries.map(e => (
                     <button key={e.key} onClick={() => onEdit(c.dayIdx, c.period.id, e.course.id)}
                       title="Clic para editar esta celda"
-                      className="flex items-center gap-1 bg-white border border-red-300 text-red-700 text-xs font-bold px-2.5 py-1 rounded-lg hover:bg-red-100 transition-colors">
+                      className="flex items-center gap-1 bg-white border border-red-300 text-red-700 text-3xl font-bold px-2.5 py-1 rounded-lg hover:bg-red-100 transition-colors">
                       {e.course.name}<Edit2 size={10} className="opacity-60"/>
                     </button>
                   ))}
                 </div>
               </div>
               <button onClick={() => onNavigate(c.dayIdx)}
-                className="text-[10px] font-bold text-red-500 border border-red-200 bg-white hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors shrink-0 mt-0.5">
+                className="text-sm font-bold text-red-500 border border-red-200 bg-white hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors shrink-0 mt-0.5">
                 Ver día
               </button>
             </div>
@@ -605,9 +648,10 @@ export default function App() {
 
   const { ready: fbReady, status: fbStatus, save: fbSave, subscribe: fbSubscribe } = useFirestore(fbConfig);
   const latestDataRef = useRef({ courses:[], teachers:[], subjects:[], schedule:{}, lastReport:null, mappings:{ teachers:{}, subjects:{} }, changeLog:[], acknowledgedConflicts:[] });
-  useEffect(() => { latestDataRef.current = { courses, teachers, subjects, schedule, lastReport, mappings, changeLog, acknowledgedConflicts: [...acknowledgedConflicts] }; }, [courses, teachers, subjects, schedule, lastReport, mappings, changeLog, acknowledgedConflicts]);
+  // Update ref synchronously during render — always current, no useEffect delay
+  latestDataRef.current = { courses, teachers, subjects, schedule, lastReport, mappings, changeLog, acknowledgedConflicts: [...acknowledgedConflicts] };
   const seededFirebaseRef = useRef(false);
-  const pendingWriteRef   = useRef(0); // counts in-flight local writes to Firebase
+  const pendingWritesRef  = useRef(new Set()); // tracks in-flight writes to ignore echo snapshots
 
   useEffect(() => {
     loadSavedFBConfig().then(cfg => {
@@ -622,7 +666,7 @@ export default function App() {
     const unsub = fbSubscribe((data) => {
       if (data) {
         // Skip snapshots triggered by our own writes — only accept external changes
-        if (pendingWriteRef.current > 0) {
+        if (pendingWritesRef.current.size > 0) {
           setCloudStatus('saved');
           return;
         }
@@ -703,19 +747,24 @@ export default function App() {
     setCloudStatus('syncing');
     try {
       if (fbReady) {
-        pendingWriteRef.current += 1;
-        await fbSave(data);
-        // Keep flag up for 1.5s to absorb the echo snapshot Firebase sends back
-        setTimeout(() => { pendingWriteRef.current = Math.max(0, pendingWriteRef.current - 1); }, 1500);
+        // Use a write-ID to robustly ignore our own echo snapshots
+        const writeId = Symbol();
+        pendingWritesRef.current.add(writeId);
+        try {
+          await fbSave(data);
+        } finally {
+          // Keep write marked for 2s to absorb Firebase's echo snapshot
+          setTimeout(() => { pendingWritesRef.current.delete(writeId); }, 2000);
+        }
       } else {
         localStorage.setItem('horaria-v3', JSON.stringify(data));
       }
-      setCloudStatus('saved');
+      setCloudStatus('just-saved');
+      setTimeout(() => setCloudStatus('saved'), 2000);
     } catch (_) {
-      pendingWriteRef.current = Math.max(0, pendingWriteRef.current - 1);
       setCloudStatus('error');
     }
-  }, [fbReady, fbSave, mappings]);
+  }, [fbReady, fbSave]);
 
   const handleConnectFirebase = useCallback(async () => {
     setFbConfigErr('');
@@ -912,6 +961,7 @@ export default function App() {
   const conflictId = (dayIdx, periodId, teacherId) => `${dayIdx}-${periodId}-${teacherId}`;
 
   const { allConflictList } = useMemo(() => {
+    // Only depends on schedule+courses for detection; teacher name looked up via teacherMap2
     const list = [];
     DAYS.forEach((day, dayIdx) => {
       FIXED_PERIODS.filter(p => p.type==='class'||p.type==='pe').forEach(period => {
@@ -925,14 +975,14 @@ export default function App() {
         });
         byTeacher.forEach((entries, teacherId) => {
           if (entries.length < 2) return;
-          const teacher = teachers.find(t => t.id === teacherId);
+          const teacher = teacherMap2.get(teacherId);
           list.push({ id: conflictId(dayIdx, period.id, teacherId), teacher, day, dayIdx, period, entries });
         });
       });
     });
     list.sort((a,b) => a.dayIdx - b.dayIdx || a.period.mod - b.period.mod);
     return { allConflictList: list };
-  }, [schedule, courses, teachers]);
+  }, [schedule, courses, teacherMap2]);
 
   const conflictList = useMemo(() =>
     allConflictList.filter(c => !acknowledgedConflicts.has(c.id)),
@@ -966,13 +1016,16 @@ export default function App() {
   }, [saveAll]);
 
   // ── Search highlight ──────────────────────────────────────────────────────
+  // Pre-build lookup maps so isHighlighted is O(1) per cell instead of O(n)
+  const subjectMap = useMemo(() => new Map(subjects.map(s=>[s.id,s])), [subjects]);
+  const teacherMap2 = useMemo(() => new Map(teachers.map(t=>[t.id,t])), [teachers]);
   const isHighlighted = useCallback((cell) => {
     if (!searchTerm.trim()) return false;
     const term    = ns(searchTerm);
-    const subj    = subjects.find(s => s.id === cell?.subjectId);
-    const teacher = teachers.find(t => t.id === cell?.teacherId);
+    const subj    = subjectMap.get(cell?.subjectId);
+    const teacher = teacherMap2.get(cell?.teacherId);
     return ns(subj?.name||'').includes(term) || ns(teacher?.name||'').includes(term);
-  }, [searchTerm, subjects, teachers]);
+  }, [searchTerm, subjectMap, teacherMap2]);
 
   // ── Cell editor ───────────────────────────────────────────────────────────
   const openCellEditor = (periodId, courseId) => {
@@ -981,17 +1034,17 @@ export default function App() {
     setEditingCell({ key, teacherId: cell.teacherId||'', subjectId: cell.subjectId||'' });
   };
   const saveCell = (key, data) => {
-    // Compute new schedule synchronously from current state
     setSchedule(cur => {
       const ns2 = { ...cur };
       const wasEmpty = !cur[key];
       if (!data.teacherId && !data.subjectId) delete ns2[key];
       else ns2[key] = { teacherId: data.teacherId, subjectId: data.subjectId };
-      // Pass ns2 directly — never read latestDataRef.schedule which is the OLD value
-      const { courses: c, teachers: t, subjects: s, lastReport: lr } = latestDataRef.current;
-      pushHistory(ns2);
-      saveAll(c, t, s, ns2, lr);
-      // Log
+
+      const { courses: c, teachers: t, subjects: s, lastReport: lr, mappings: m, changeLog: cl, acknowledgedConflicts: ack } = latestDataRef.current;
+
+      // Build log entry here, synchronously, before any async work
+      const ts   = new Date().toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+      const date = new Date().toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit' });
       const [dIdx, pId, cId] = key.split('-');
       const courseName = c.find(x=>x.id===parseInt(cId))?.name || '?';
       const day = ['Lun','Mar','Mié','Jue','Vie'][parseInt(dIdx)] || '?';
@@ -1000,7 +1053,13 @@ export default function App() {
       const teachName = data.teacherId ? t.find(x=>x.id===data.teacherId)?.name : null;
       const action = (!data.teacherId && !data.subjectId) ? 'Celda borrada' : wasEmpty ? 'Celda asignada' : 'Celda editada';
       const detail = `${day} Mód.${period?.mod||'?'} · ${courseName}` + (subjName ? ` → ${subjName}` : '') + (teachName ? ` / ${teachName}` : '');
-      logChange(action, detail);
+      const newLog = [{ id: Date.now(), ts, date, action, detail }, ...cl].slice(0, 200);
+
+      // Single atomic write: schedule + log together, no second write from logChange
+      pushHistory(ns2);
+      saveAll(c, t, s, ns2, lr, m, newLog, new Set(ack));
+      // Update changeLog state without triggering another saveAll
+      setTimeout(() => setChangeLog(newLog), 0);
       return ns2;
     });
     setEditingCell(null);
@@ -1098,6 +1157,12 @@ export default function App() {
     return map;
   }, [schedule]);
 
+  const teacherUsage = useMemo(() => {
+    const map = new Map();
+    Object.values(schedule).forEach(c => { if (c.teacherId) map.set(c.teacherId,(map.get(c.teacherId)||0)+1); });
+    return map;
+  }, [schedule]);
+
   const alertCount = (lastReport?.warnings?.length||0) + (lastReport?.skipped?.length||0) + conflictList.length;
 
 
@@ -1168,8 +1233,8 @@ window.print();window.onafterprint=()=>window.close();
       const cells = courses.map(course => {
         const key = `${currentDay}-${p.id}-${course.id}`;
         const cell = schedule[key];
-        const subj = cell?.subjectId ? subjects.find(s => s.id === cell.subjectId)?.name || '' : '';
-        const tch  = cell?.teacherId ? teachers.find(t => t.id === cell.teacherId)?.name || '' : '';
+        const subj = cell?.subjectId ? subjectMap.get(cell.subjectId)?.name || '' : '';
+        const tch  = cell?.teacherId ? teacherMap2.get(cell.teacherId)?.name || '' : '';
         return `<td><div class="top">${subj || '—'}</div>${tch ? `<div class="bot">${tch}</div>` : ''}</td>`;
       }).join('');
       return `<tr><td class="mod">${p.mod}°<br/><small>${p.start}–${p.end}</small></td>${cells}</tr>`;
@@ -1209,8 +1274,8 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
       const cells = courses.map(course => {
         const key = `${currentDay}-${p.id}-${course.id}`;
         const cell = schedule[key];
-        const subj = cell?.subjectId ? subjects.find(s => s.id === cell.subjectId)?.name || '' : '';
-        const tch  = cell?.teacherId ? teachers.find(t => t.id === cell.teacherId)?.name || '' : '';
+        const subj = cell?.subjectId ? subjectMap.get(cell.subjectId)?.name || '' : '';
+        const tch  = cell?.teacherId ? teacherMap2.get(cell.teacherId)?.name || '' : '';
         return subj ? (tch ? subj + ' / ' + tch : subj) : '';
       }).join('\t');
       return p.mod + '°\t' + cells;
@@ -1229,29 +1294,29 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
       <div className="space-y-3">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-5 py-3 flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h3 className="font-black text-slate-800 text-sm uppercase tracking-wide">{title}</h3>
+            <h3 className="font-black text-slate-800 text-3xl uppercase tracking-wide">{title}</h3>
             {modCount != null && (
-              <p className="text-[10px] text-slate-400 font-bold mt-0.5">
-                <span className="text-indigo-600 font-black text-base">{modCount}</span> módulos semanales
+              <p className="text-sm text-slate-400 font-bold mt-0.5">
+                <span className="text-indigo-600 font-black text-2xl">{modCount}</span> módulos semanales
               </p>
             )}
           </div>
           <div className="flex gap-2">
             <button onClick={copyToExcel}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl hover:bg-emerald-100 active:scale-95 transition-all">
+              className="flex items-center gap-1.5 px-3 py-2 text-3xl font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl hover:bg-emerald-100 active:scale-95 transition-all">
               <Copy size={12}/> Copiar para Excel
             </button>
             <button onClick={exportPDF}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold bg-red-50 text-red-600 border border-red-200 rounded-xl hover:bg-red-100 active:scale-95 transition-all">
+              className="flex items-center gap-1.5 px-3 py-2 text-3xl font-bold bg-red-50 text-red-600 border border-red-200 rounded-xl hover:bg-red-100 active:scale-95 transition-all">
               <Download size={12}/> Descargar PDF
             </button>
           </div>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table ref={reportTableRef} className="w-full text-left border-collapse text-sm">
+            <table ref={reportTableRef} className="w-full text-left border-collapse text-2xl">
               <thead>
-                <tr className="bg-slate-50 text-xs font-black text-slate-500 uppercase">
+                <tr className="bg-slate-50 text-3xl font-black text-slate-500 uppercase">
                   <th className="p-3 border-b border-r border-slate-200 w-24 text-center">Mód.</th>
                   {DAYS.map(d => <th key={d} className="p-3 border-b border-r border-slate-200 min-w-[160px]">{d}</th>)}
                 </tr>
@@ -1282,7 +1347,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                                 </div>
                               )}
                             </div>
-                          ) : <span className="text-slate-200 font-bold text-sm">—</span>}
+                          ) : <span className="text-slate-200 font-bold text-2xl">—</span>}
                         </td>
                       );
                     })}
@@ -1297,34 +1362,34 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
   }, [copyToExcel, exportPDF]);
 
   // ── Report render ─────────────────────────────────────────────────────────
-  const renderReport = () => {
+  const renderReport = useMemo(() => {
     if (!reportSelection) return (
       <div className="flex flex-col items-center justify-center py-20">
         <BarChart3 size={44} className="text-slate-200 mb-4"/>
-        <p className="font-bold text-slate-400 text-sm">Seleccioná un elemento para ver el reporte</p>
+        <p className="font-bold text-slate-400 text-2xl">Seleccioná un elemento para ver el reporte</p>
       </div>
     );
     if (reportType === 'teacher') {
-      const teacher = teachers.find(t => t.id === reportSelection);
+      const teacher = teacherMap2.get(reportSelection);
       if (!teacher) return null;
-      const modCount = Object.values(schedule).filter(v => v.teacherId === teacher.id).length;
+      const modCount = teacherUsage.get(teacher.id) ?? 0;
       const idx = {};
       Object.entries(schedule).forEach(([key, val]) => {
         if (val.teacherId !== teacher.id) return;
         const [dI, pI, cI] = key.split('-');
-        const subj   = subjects.find(s => s.id === val.subjectId);
-        const course = courses.find(c => c.id === parseInt(cI));
+        const subj   = subjectMap.get(val.subjectId);
+        const course = coursesMap.get(parseInt(cI));
         idx[`${dI}-${pI}`] = { top: subj?.name || '—', bottom: course?.name || '' };
       });
       return (
         <div className="space-y-3">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-5 py-4 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center border-2 text-xl font-black shrink-0 text-white"
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center border-2 text-3xl font-black shrink-0 text-white"
               style={teacherAvatarStyle(teacher.colorHex)}>
               {teacher.name.charAt(0).toUpperCase()}
             </div>
             <div>
-              <div className="font-black text-slate-800 text-base uppercase">{teacher.name}</div>
+              <div className="font-black text-slate-800 text-3xl uppercase">{teacher.name}</div>
               <div className="text-xs text-slate-400 font-bold mt-0.5">{teacher.subject || 'Sin materias asignadas'}</div>
             </div>
           </div>
@@ -1333,13 +1398,13 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
             conflictFn={(dI, p) => courses.some(c => conflictKeys.has(`${dI}-${p.id}-${c.id}`) && schedule[`${dI}-${p.id}-${c.id}`]?.teacherId === teacher.id)}
             conflictDetailFn={(dI, p) => {
               const conflicting = courses.filter(c => conflictKeys.has(`${dI}-${p.id}-${c.id}`) && schedule[`${dI}-${p.id}-${c.id}`]?.teacherId === teacher.id);
-              return conflicting.map(c => { const subj = subjects.find(s => s.id === schedule[`${dI}-${p.id}-${c.id}`]?.subjectId); return `${c.name}: ${subj?.name || '—'}`; });
+              return conflicting.map(c => { const subj = subjectMap.get(schedule[`${dI}-${p.id}-${c.id}`]?.subjectId); return `${c.name}: ${subj?.name || '—'}`; });
             }}/>
         </div>
       );
     }
     if (reportType === 'course') {
-      const course = courses.find(c => c.id === parseInt(reportSelection));
+      const course = coursesMap.get(parseInt(reportSelection));
       if (!course) return null;
       return (
         <ScheduleGrid title={`Horario curso: ${course.name}`}
@@ -1347,28 +1412,28 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
           conflictDetailFn={(dI, p) => {
             const cell = schedule[`${dI}-${p.id}-${course.id}`];
             if (!cell?.teacherId) return [];
-            const t = teachers.find(t => t.id === cell.teacherId);
+            const t = teacherMap2.get(cell.teacherId);
             const otherCourses = courses.filter(c => c.id !== course.id && conflictKeys.has(`${dI}-${p.id}-${c.id}`) && schedule[`${dI}-${p.id}-${c.id}`]?.teacherId === cell.teacherId);
             return [`${t?.name || '—'} también en: ${otherCourses.map(c=>c.name).join(', ')}`];
           }}
           cellFn={(dI, p) => {
           const cell    = schedule[`${dI}-${p.id}-${course.id}`];
           if (!cell) return null;
-          const subj    = subjects.find(s => s.id === cell.subjectId);
-          const teacher = teachers.find(t => t.id === cell.teacherId);
+          const subj    = subjectMap.get(cell.subjectId);
+          const teacher = teacherMap2.get(cell.teacherId);
           return { top: subj?.name || '—', bottom: teacher?.name || '' };
         }}/>
       );
     }
     if (reportType === 'subject') {
-      const subj = subjects.find(s => s.id === reportSelection);
+      const subj = subjectMap.get(reportSelection);
       if (!subj) return null;
       const idx = {};
       Object.entries(schedule).forEach(([key, val]) => {
         if (val.subjectId !== reportSelection) return;
         const [dI, pI, cI] = key.split('-');
-        const teacher = teachers.find(t => t.id === val.teacherId);
-        const course  = courses.find(c => c.id === parseInt(cI));
+        const teacher = teacherMap2.get(val.teacherId);
+        const course  = coursesMap.get(parseInt(cI));
         const slot    = `${dI}-${pI}`;
         if (!idx[slot]) idx[slot] = [];
         idx[slot].push(`${teacher?.name || '—'} (${course?.name || '—'})`);
@@ -1381,7 +1446,8 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
         }}/>
       );
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reportType, reportSelection, teachers, subjects, courses, schedule, conflictKeys, subjectMap, teacherMap2, coursesMap, teacherUsage, ScheduleGrid]);
 
 
   const tabs = [
@@ -1399,9 +1465,15 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
     [subjects]
   );
 
+  const coursesMap = useMemo(() => new Map(courses.map(c=>[c.id, c])), [courses]);
+
   // ─────────────────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-slate-50 text-slate-700 font-sans">
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity:0; transform:scale(0.8); } to { opacity:1; transform:scale(1); } }
+      `}</style>
 
       {/* ── Header ── */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-40 px-3 md:px-5 py-2.5 flex items-center justify-between shadow-sm gap-2">
@@ -1416,13 +1488,13 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
           {conflictPairs>0&&(
             <button
               onClick={()=>setActiveTab('alerts')}
-              className="hidden sm:flex items-center gap-1 bg-red-50 text-red-600 px-2 py-1 rounded-lg border border-red-200 text-[10px] font-bold hover:bg-red-100 transition-colors cursor-pointer">
+              className="hidden sm:flex items-center gap-1 bg-red-50 text-red-600 px-2 py-1 rounded-lg border border-red-200 text-sm font-bold hover:bg-red-100 transition-colors cursor-pointer">
               <AlertTriangle size={10}/>{conflictPairs} conflicto{conflictPairs!==1?'s':''}
             </button>
           )}
           {potentialDuplicates.length>0&&(
             <button onClick={()=>setActiveTab('subjects')}
-              className="hidden sm:flex items-center gap-1 bg-amber-50 text-amber-600 px-2 py-1 rounded-lg border border-amber-100 text-[10px] font-bold hover:bg-amber-100 transition-colors">
+              className="hidden sm:flex items-center gap-1 bg-amber-50 text-amber-600 px-2 py-1 rounded-lg border border-amber-100 text-sm font-bold hover:bg-amber-100 transition-colors">
               <AlertCircle size={10}/>{potentialDuplicates.length} dup.
             </button>
           )}
@@ -1430,12 +1502,12 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
             {tabs.map(t => (
               <button key={t.id}
                 onClick={() => { setActiveTab(t.id); setReportSelection(''); setListSearch(''); setSelectedItems(new Set()); if(t.id!=='import') setImportStep('input'); }}
-                className={`relative px-2 md:px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1
+                className={`relative px-2 md:px-2.5 py-1.5 rounded-lg text-3xl font-bold transition-all flex items-center gap-1
                   ${activeTab===t.id?'bg-white text-indigo-600 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>
                 {t.icon}
                 <span className="hidden md:inline">{t.label}</span>
                 {t.id==='alerts' && alertCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center">
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center">
                     {alertCount > 9 ? '!' : alertCount}
                   </span>
                 )}
@@ -1461,7 +1533,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
 
       {/* ── Toast ── */}
       {message&&(
-        <div className={`fixed top-14 right-4 z-[100] px-4 py-3 rounded-xl shadow-lg text-white text-sm flex items-center gap-2
+        <div className={`fixed top-14 right-4 z-[100] px-4 py-3 rounded-xl shadow-lg text-white text-3xl flex items-center gap-2
           ${message.type==='error'?'bg-red-500':'bg-emerald-600'}`}>
           {message.type==='error'?<AlertCircle size={15}/>:<Check size={15}/>}
           <span className="font-bold">{message.text}</span>
@@ -1477,7 +1549,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
               <div className="flex border-b border-slate-100">
                 {DAYS.map((d,i)=>(
                   <button key={i} onClick={()=>setCurrentDay(i)}
-                    className={`flex-1 py-2.5 text-xs font-black uppercase tracking-wide transition-all border-b-2
+                    className={`flex-1 py-2.5 text-3xl font-black uppercase tracking-wide transition-all border-b-2
                       ${i===currentDay?'border-indigo-600 text-indigo-600 bg-indigo-50/60':'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>
                     <span className="hidden sm:inline">{d}</span>
                     <span className="sm:hidden">{d.slice(0,3)}</span>
@@ -1489,7 +1561,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                 <div className="relative flex-1 max-w-xs">
                   <Search className="absolute left-2.5 top-0 bottom-0 my-auto text-slate-400 pointer-events-none" style={{height:'12px',width:'12px'}} size={12}/>
                   <input type="text" placeholder="Buscar docente o materia…"
-                    className="w-full text-xs border border-slate-200 rounded-lg pl-8 pr-7 py-1.5 leading-none outline-none focus:ring-2 ring-indigo-100"
+                    className="w-full text-3xl border border-slate-200 rounded-lg pl-8 pr-7 py-1.5 leading-none outline-none focus:ring-2 ring-indigo-100"
                     value={searchTerm} onChange={e=>setSearchTerm(e.target.value)}/>
                   {searchTerm&&<button onClick={()=>setSearchTerm('')} className="absolute right-2 top-0 bottom-0 my-auto flex items-center text-slate-400 h-full"><X size={11}/></button>}
                 </div>
@@ -1497,11 +1569,11 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                 {courses.length>0&&(
                   <div className="flex gap-1">
                     <button onClick={exportGridExcel} title="Copiar para Excel"
-                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors">
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-3xl font-bold rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors">
                       <Copy size={12}/><span className="hidden sm:inline">Excel</span>
                     </button>
                     <button onClick={exportGridPDF} title="Exportar PDF"
-                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors">
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-3xl font-bold rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors">
                       <Download size={12}/><span className="hidden sm:inline">PDF</span>
                     </button>
                   </div>
@@ -1509,11 +1581,11 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                 {/* Undo/redo — right side */}
                 <div className="flex gap-1 ml-auto">
                   <button onClick={undo} disabled={historyIdx_s<=0} title="Deshacer (Ctrl+Z)"
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-3xl font-bold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                     <Undo2 size={13}/><span className="hidden sm:inline">Deshacer</span>
                   </button>
                   <button onClick={redo} disabled={historyIdx_s>=history.current.length-1} title="Rehacer (Ctrl+Y)"
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-3xl font-bold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                     <Redo2 size={13}/><span className="hidden sm:inline">Rehacer</span>
                   </button>
                 </div>
@@ -1523,25 +1595,25 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
             {courses.length===0 ? (
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-16 flex flex-col items-center text-center gap-4">
                 <Calendar size={44} className="text-slate-200"/>
-                <div><h3 className="font-black text-slate-400 text-lg">Sin datos de horario</h3><p className="text-slate-400 text-sm mt-1">Importá un CSV desde la pestaña <strong>Importar</strong>.</p></div>
-                <button onClick={()=>setActiveTab('import')} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors flex items-center gap-2"><Upload size={14}/>Importar</button>
+                <div><h3 className="font-black text-slate-400 text-2xl">Sin datos de horario</h3><p className="text-slate-400 text-3xl mt-1">Importá un CSV desde la pestaña <strong>Importar</strong>.</p></div>
+                <button onClick={()=>setActiveTab('import')} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold text-3xl hover:bg-indigo-700 transition-colors flex items-center gap-2"><Upload size={14}/>Importar</button>
               </div>
             ) : (
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div ref={gridScrollRef} className="overflow-auto" style={{maxHeight:'calc(100vh - 175px)'}}
-                  onScroll={e=>setGridScrolled(e.currentTarget.scrollTop>4)}>
+                  onScroll={e=>{ const t=e.currentTarget; if(!t._rafPending){t._rafPending=true;requestAnimationFrame(()=>{setGridScrolled(t.scrollTop>4);t._rafPending=false;}); } }}>
                   <table className="w-full border-separate border-spacing-0 table-fixed">
                     <thead className="sticky top-0 z-20">
                       <tr className={gridScrolled?'bg-white shadow-sm':'bg-slate-50'} style={{transition:'background 0.2s'}}>
-                        <th className={`p-2.5 border-b border-r border-slate-200 text-xs font-bold text-slate-500 uppercase w-16 sticky left-0 z-30 ${gridScrolled?'bg-white':'bg-slate-50'}`}>Mód.</th>
-                        {courses.map(c=><th key={c.id} className={`p-2.5 border-b border-r border-slate-200 text-sm font-bold text-slate-700 text-left ${gridScrolled?'bg-white':'bg-slate-50'}`} style={{width:'180px',maxWidth:'180px',minWidth:'160px'}}><span className="block truncate">{c.name}</span></th>)}
+                        <th className={`p-2.5 border-b border-r border-slate-200 text-3xl font-bold text-slate-500 uppercase w-16 sticky left-0 z-30 ${gridScrolled?'bg-white':'bg-slate-50'}`}>Mód.</th>
+                        {courses.map(c=><th key={c.id} className={`p-2.5 border-b border-r border-slate-200 text-3xl font-bold text-slate-700 text-left ${gridScrolled?'bg-white':'bg-slate-50'}`} style={{width:'180px',maxWidth:'180px',minWidth:'160px'}}><span className="block truncate">{c.name}</span></th>)}
                       </tr>
                     </thead>
                     <tbody>
                       {FIXED_PERIODS.map(period=>{
                         if (period.type==='break'||period.type==='separator') return (
                           <tr key={period.id}><td colSpan={courses.length+1}
-                            className={`py-1.5 px-4 text-center text-xs font-black uppercase tracking-widest border-b
+                            className={`py-1.5 px-4 text-center text-3xl font-black uppercase tracking-widest border-b
                               ${period.type==='break'?'bg-slate-50 text-slate-400':'bg-indigo-50 text-indigo-400'}`}>
                             {period.label}
                           </td></tr>
@@ -1550,14 +1622,14 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                           <tr key={period.id} className="group">
                             <td className="p-2 border-b border-r border-slate-100 text-center sticky left-0 bg-white z-10 group-hover:bg-slate-50/70 transition-colors">
                               <span className={`text-sm font-black block ${period.type==='pe'?'text-emerald-600':'text-indigo-600'}`}>{period.mod}°</span>
-                              <span className="text-[10px] text-slate-400 font-bold block leading-tight">{period.start}</span>
-                              <span className="text-[10px] text-slate-400 font-bold block leading-tight">{period.end}</span>
+                              <span className="text-sm text-slate-400 font-bold block leading-tight">{period.start}</span>
+                              <span className="text-sm text-slate-400 font-bold block leading-tight">{period.end}</span>
                             </td>
                             {courses.map(course=>{
                               const key         = `${currentDay}-${period.id}-${course.id}`;
                               const cell        = schedule[key];
-                              const teacher     = teachers.find(t=>t.id===cell?.teacherId);
-                              const subject     = subjects.find(s=>s.id===cell?.subjectId);
+                              const teacher     = teacherMap2.get(cell?.teacherId);
+                              const subject     = subjectMap.get(cell?.subjectId);
                               const hasConflict = conflicts.has(key);
                               const highlighted = searchTerm?isHighlighted(cell):false;
                               const dimmed      = searchTerm&&!highlighted&&!!cell;
@@ -1570,12 +1642,12 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                                     <div className={`rounded-lg p-2 border h-full transition-all ${dimmed?'opacity-20':''} ${hasConflict?'border-red-300 bg-red-50 text-red-700':'border-slate-200'}`}
                                       style={!hasConflict && teacher?.colorHex ? teacherStyle(teacher.colorHex) : {}}>
                                       <div className="text-xs font-bold leading-snug truncate overflow-hidden whitespace-nowrap">{subject?.name??<span className="italic text-slate-400">Sin materia</span>}</div>
-                                      <div className="text-[10px] opacity-70 font-bold uppercase truncate overflow-hidden whitespace-nowrap mt-0.5">{teacher?.name??<span className="text-slate-300">Sin docente</span>}</div>
-                                      {hasConflict&&<div className="flex items-center gap-0.5 mt-1"><AlertTriangle size={8} className="text-red-500 shrink-0"/><span className="text-[10px] text-red-500 font-bold">Conflicto</span></div>}
+                                      <div className="text-sm opacity-70 font-bold uppercase truncate overflow-hidden whitespace-nowrap mt-0.5">{teacher?.name??<span className="text-slate-300">Sin docente</span>}</div>
+                                      {hasConflict&&<div className="flex items-center gap-0.5 mt-1"><AlertTriangle size={8} className="text-red-500 shrink-0"/><span className="text-sm text-red-500 font-bold">Conflicto</span></div>}
                                     </div>
                                   ):(
                                     <div className="rounded-lg p-2 border border-dashed border-transparent hover:border-slate-200 h-full min-h-[44px] flex items-center justify-center">
-                                      <span className="text-slate-200 text-xl leading-none">+</span>
+                                      <span className="text-slate-200 text-3xl leading-none">+</span>
                                     </div>
                                   )}
                                 </td>
@@ -1607,7 +1679,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
           const items = isTeachers
             ? [...teachers].sort((a,b)=>a.name.localeCompare(b.name,'es')).map(t=>({
                 id: t.id, name: t.name, subtitle: t.subject||'Sin materias asignadas',
-                badge: `${Object.values(schedule).filter(v=>v.teacherId===t.id).length} mód. sem.`,
+                badge: `${teacherUsage.get(t.id)??0} mód. sem.`,
                 avatar: t.name.charAt(0).toUpperCase(), colorHex: t.colorHex, isDupe: false,
               }))
             : sortedSubjects.map(s=>({
@@ -1640,13 +1712,13 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
               <div className="flex items-center justify-between flex-wrap gap-2 pt-1">
                 <h2 className="text-xl font-black text-slate-800">
                   {isTeachers?'Plantel Docente':'Materias'}
-                  <span className="text-slate-400 text-sm font-bold ml-2">{items.length}</span>
+                  <span className="text-slate-400 text-3xl font-bold ml-2">{items.length}</span>
                 </h2>
                 <button
                   onClick={()=>isTeachers
                     ?setEditingTeacher({id:`t-${uid()}`,name:'',subject:'',color:'',colorHex:HEX_COLORS[teachers.length%HEX_COLORS.length]})
                     :setEditingSubject({id:'new',name:''})}
-                  className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors flex items-center gap-2">
+                  className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold text-3xl hover:bg-indigo-700 transition-colors flex items-center gap-2">
                   <Plus size={13}/>{isTeachers?'Agregar Docente':'Nueva Materia'}
                 </button>
               </div>
@@ -1666,18 +1738,18 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                 <div className="relative flex-1 min-w-[160px] max-w-xs">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13}/>
                   <input type="text" placeholder={isTeachers?'Buscar docente…':'Buscar materia…'}
-                    className="w-full text-sm border border-slate-200 rounded-xl pl-9 pr-4 py-2 outline-none focus:ring-2 ring-indigo-100"
+                    className="w-full text-3xl border border-slate-200 rounded-xl pl-9 pr-4 py-2 outline-none focus:ring-2 ring-indigo-100"
                     value={listSearch} onChange={e=>{setListSearch(e.target.value);setSelectedItems(new Set());}}/>
                 </div>
                 {hasSel&&(
                   <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-1.5">
                     <span className="text-xs font-black text-indigo-600">{selCount} seleccionado{selCount!==1?'s':''}</span>
                     <button onClick={openMergeModal} disabled={selCount<2}
-                      className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg transition-colors ${selCount>=2?'text-indigo-700 bg-indigo-100 hover:bg-indigo-200 cursor-pointer':'text-slate-400 bg-slate-100 cursor-not-allowed opacity-60'}`}>
+                      className={`flex items-center gap-1 text-3xl font-bold px-2 py-1 rounded-lg transition-colors ${selCount>=2?'text-indigo-700 bg-indigo-100 hover:bg-indigo-200 cursor-pointer':'text-slate-400 bg-slate-100 cursor-not-allowed opacity-60'}`}>
                       <Merge size={11}/>Unificar selección
                     </button>
                     <button onClick={bulkDelete}
-                      className="flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-lg transition-colors">
+                      className="flex items-center gap-1 text-3xl font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-lg transition-colors">
                       <Trash2 size={11}/>Eliminar
                     </button>
                     <button onClick={()=>setSelectedItems(new Set())} className="text-slate-400 hover:text-slate-600 transition-colors ml-1"><X size={13}/></button>
@@ -1697,7 +1769,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                   {/* select-all */}
                   <div className="flex items-center gap-3 px-4 py-2 border-b border-slate-100 bg-slate-50/60">
                     <input type="checkbox" checked={allSel} onChange={toggleAll} className="w-4 h-4 rounded accent-indigo-600 cursor-pointer"/>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wide">{allSel?'Deseleccionar todo':'Seleccionar todo'}</span>
+                    <span className="text-sm font-black text-slate-400 uppercase tracking-wide">{allSel?'Deseleccionar todo':'Seleccionar todo'}</span>
                   </div>
 
                   {filtered.map(item=>{
@@ -1712,7 +1784,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                           className="w-4 h-4 rounded accent-indigo-600 cursor-pointer shrink-0"/>
 
                         {/* avatar with color */}
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border text-sm font-black text-white"
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border text-3xl font-black text-white"
                           style={item.colorHex ? teacherAvatarStyle(item.colorHex) : {backgroundColor:'#e2e8f0', borderColor:'#cbd5e1', color:'#64748b'}}>
                           {item.avatar}
                         </div>
@@ -1721,8 +1793,8 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1 flex-wrap">
                             {item.isDupe&&<AlertTriangle size={11} className="text-amber-400 shrink-0"/>}
-                            <span className="font-bold text-slate-800 text-sm truncate">{item.name}</span>
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0 ${parseInt(item.badge)===0||item.badge.startsWith('0')?'bg-slate-100 text-slate-400':'bg-indigo-50 text-indigo-600'}`}>
+                            <span className="font-bold text-slate-800 text-3xl truncate">{item.name}</span>
+                            <span className={`text-sm font-bold px-1.5 py-0.5 rounded-md shrink-0 ${parseInt(item.badge)===0||item.badge.startsWith('0')?'bg-slate-100 text-slate-400':'bg-indigo-50 text-indigo-600'}`}>
                               {item.badge}
                             </span>
                             {/* actions inline, right after the name */}
@@ -1737,7 +1809,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                               <Trash2 size={13}/>
                             </button>
                           </div>
-                          {item.subtitle&&<p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">{item.subtitle}</p>}
+                          {item.subtitle&&<p className="text-sm text-slate-400 font-medium truncate mt-0.5">{item.subtitle}</p>}
                         </div>
                       </div>
                     );
@@ -1754,16 +1826,16 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
           <div className="space-y-4 w-full">
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap gap-4 items-end">
               <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase block mb-1.5">Tipo</label>
+                <label className="text-sm font-black text-slate-500 uppercase block mb-1.5">Tipo</label>
                 <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
                   {[['teacher','Docente'],['course','Curso'],['subject','Materia']].map(([val,lbl])=>(
                     <button key={val} onClick={()=>{setReportType(val);setReportSelection('');}}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${reportType===val?'bg-white text-indigo-600 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>{lbl}</button>
+                      className={`px-3 py-1.5 rounded-lg text-3xl font-bold transition-all ${reportType===val?'bg-white text-indigo-600 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>{lbl}</button>
                   ))}
                 </div>
               </div>
               <div className="flex-1 min-w-[180px]">
-                <label className="text-[10px] font-black text-slate-500 uppercase block mb-1.5">{reportType==='teacher'?'Docente':reportType==='course'?'Curso':'Materia'}</label>
+                <label className="text-sm font-black text-slate-500 uppercase block mb-1.5">{reportType==='teacher'?'Docente':reportType==='course'?'Curso':'Materia'}</label>
                 <SearchableDropdown
                   value={reportSelection}
                   onChange={v => setReportSelection(v)}
@@ -1792,24 +1864,24 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                     <p className="text-sm text-slate-500 mt-1">Pegá el contenido del CSV. Antes de guardar, podrás ver una tabla de preview completa para verificar que todo esté bien.</p>
                   </div>
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-1">
-                    <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Formato esperado</p>
+                    <p className="text-sm font-black text-slate-400 uppercase mb-2">Formato esperado</p>
                     {['LUNES,1A,1B,1C,1D','1,Matemática,Lengua,Historia,Biología',',García Juan,López María,Pérez Ana,Torres Luis','2,Física,Matemática,Arte,Química',',Romero Pedro,García Juan,Díaz Rosa,Vega Omar','… (repetir para cada día)'].map((line,i)=>(
                       <div key={i} className={`text-xs font-mono ${line.startsWith('…')?'text-slate-400 italic':'text-slate-600'}`}>{line}</div>
                     ))}
-                    <p className="text-[10px] text-slate-400 mt-2 pt-2 border-t border-slate-200">La fila de docentes debe empezar con una coma.</p>
+                    <p className="text-sm text-slate-400 mt-2 pt-2 border-t border-slate-200">La fila de docentes debe empezar con una coma.</p>
                   </div>
                   <textarea value={csvContent} onChange={e=>setCsvContent(e.target.value)}
                     placeholder="Pegá aquí el contenido CSV…"
-                    className="w-full h-64 text-xs font-mono border border-slate-200 rounded-xl p-4 outline-none focus:ring-2 ring-indigo-100 resize-y bg-white text-slate-700 placeholder-slate-300"/>
+                    className="w-full h-64 text-3xl font-mono border border-slate-200 rounded-xl p-4 outline-none focus:ring-2 ring-indigo-100 resize-y bg-white text-slate-700 placeholder-slate-300"/>
                   <div className="flex justify-end gap-3 flex-wrap">
                     {(courses.length>0||teachers.length>0)&&(
                       <button onClick={()=>{if(window.confirm('¿Eliminar todos los datos del horario?')){setCourses([]);setTeachers([]);setSubjects([]);setSchedule({});saveAll([],[],[],{},lastReport);showMsg('Datos eliminados.');}}}
-                        className="px-4 py-2.5 rounded-xl font-bold text-sm border border-red-200 text-red-500 hover:bg-red-50 transition-colors flex items-center gap-2">
+                        className="px-4 py-2.5 rounded-xl font-bold text-3xl border border-red-200 text-red-500 hover:bg-red-50 transition-colors flex items-center gap-2">
                         <Trash2 size={13}/>Limpiar Todo
                       </button>
                     )}
                     <button onClick={handleAnalyze} disabled={!csvContent.trim()}
-                      className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2">
+                      className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold text-3xl hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2">
                       <Eye size={13}/>Analizar y Previsualizar
                     </button>
                   </div>
@@ -1842,9 +1914,9 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
               </div>
               <div className="divide-y divide-slate-100 overflow-y-auto" style={{maxHeight:'240px'}}>
                 {changeLog.length===0
-                  ? <div className="px-4 py-2.5 text-sm text-slate-400">Sin cambios registrados aún.</div>
+                  ? <div className="px-4 py-2.5 text-3xl text-slate-400">Sin cambios registrados aún.</div>
                   : changeLog.map(entry=>(
-                    <div key={entry.id} className="px-4 py-2.5 flex items-center gap-2 text-sm">
+                    <div key={entry.id} className="px-4 py-2.5 flex items-center gap-2 text-2xl">
                       <span className="text-slate-400 shrink-0 font-mono">{entry.date} {entry.ts}</span>
                       <ArrowRight size={10} className="text-slate-300 shrink-0"/>
                       <span className="text-blue-600 font-bold shrink-0">{entry.action}</span>
@@ -1895,7 +1967,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                 }
               </div>
               <div className="flex-1">
-                <p className={`font-black text-sm ${fbConfig && fbStatus==='error' ? 'text-red-700' : 'text-slate-800'}`}>
+                <p className={`font-black text-3xl ${fbConfig && fbStatus==='error' ? 'text-red-700' : 'text-slate-800'}`}>
                   {!fbConfig
                     ? 'Sin Firebase — usando almacenamiento local'
                     : fbStatus==='connected'  ? 'Conectado a Firebase'
@@ -1939,7 +2011,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                   {/* header */}
                   <div className="px-5 pt-5 pb-3 border-b border-slate-100 flex items-start justify-between gap-3">
                     <div>
-                      <h3 className="font-black text-slate-800 text-base">Correcciones aprendidas</h3>
+                      <h3 className="font-black text-slate-800 text-2xl">Correcciones aprendidas</h3>
                       <p className="text-xs text-slate-500 mt-0.5">Se aplican automáticamente en cada importación.</p>
                     </div>
                     {totalEntries > 0 && (
@@ -1954,12 +2026,12 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                   <div className="flex border-b border-slate-100 bg-slate-50/60 px-3 pt-2 gap-1">
                     {subTabs.map(st => (
                       <button key={st.id} onClick={() => setConfigSubTab(st.id)}
-                        className={`px-3 py-1.5 text-xs font-bold rounded-t-lg transition-all border-b-2 flex items-center gap-1.5
+                        className={`px-3 py-1.5 text-3xl font-bold rounded-t-lg transition-all border-b-2 flex items-center gap-1.5
                           ${configSubTab === st.id
                             ? 'border-indigo-500 text-indigo-600 bg-white shadow-sm'
                             : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
                         {st.label}
-                        <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${st.count > 0 ? 'bg-indigo-50 text-indigo-500' : 'bg-slate-100 text-slate-400'}`}>
+                        <span className={`text-sm font-black px-1.5 py-0.5 rounded-md ${st.count > 0 ? 'bg-indigo-50 text-indigo-500' : 'bg-slate-100 text-slate-400'}`}>
                           {st.count}
                         </span>
                       </button>
@@ -1977,7 +2049,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                         {activeEntries.map(entry => (
                           <div key={`${entry.type}-${entry.from}`} className="flex items-center gap-3 px-4 py-2.5">
                             {configSubTab === 'all' && (
-                              <span className={`text-[9px] font-black px-1.5 py-0.5 rounded shrink-0 ${entry.type==='subjects'?'bg-indigo-50 text-indigo-400':'bg-emerald-50 text-emerald-500'}`}>
+                              <span className={`text-xs font-black px-1.5 py-0.5 rounded shrink-0 ${entry.type==='subjects'?'bg-indigo-50 text-indigo-400':'bg-emerald-50 text-emerald-500'}`}>
                                 {entry.type==='subjects'?'MAT':'DOC'}
                               </span>
                             )}
@@ -1999,7 +2071,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
             {/* Guide */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
               <div>
-                <h3 className="font-black text-slate-800 text-base">Cómo conectar Firebase (gratis)</h3>
+                <h3 className="font-black text-slate-800 text-2xl">Cómo conectar Firebase (gratis)</h3>
                 <p className="text-sm text-slate-500 mt-1">Una vez configurado, todos los que usen esta app verán y editarán los mismos datos en tiempo real.</p>
               </div>
               {[
@@ -2010,11 +2082,11 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                 {n:5,title:'Pegar la configuración aquí abajo y conectar',body:'Pegá el objeto firebaseConfig en el campo de abajo y hacé click en Conectar.'},
               ].map(step=>(
                 <div key={step.n} className="flex gap-4">
-                  <div className="w-7 h-7 rounded-full bg-indigo-600 text-white text-xs font-black flex items-center justify-center shrink-0 mt-0.5">{step.n}</div>
+                  <div className="w-7 h-7 rounded-full bg-indigo-600 text-white text-3xl font-black flex items-center justify-center shrink-0 mt-0.5">{step.n}</div>
                   <div className="flex-1">
-                    <p className="font-bold text-slate-800 text-sm">{step.title}</p>
+                    <p className="font-bold text-slate-800 text-2xl">{step.title}</p>
                     <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{step.body}</p>
-                    {step.link&&(<a href={step.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-indigo-600 font-bold mt-1 hover:underline">{step.linkLabel}<ExternalLink size={10}/></a>)}
+                    {step.link&&(<a href={step.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-3xl text-indigo-600 font-bold mt-1 hover:underline">{step.linkLabel}<ExternalLink size={10}/></a>)}
                   </div>
                 </div>
               ))}
@@ -2023,10 +2095,10 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
             {/* Config paste */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
               <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wide block mb-1.5">Pegá tu firebaseConfig aquí</label>
+                <label className="text-sm font-black text-slate-500 uppercase tracking-wide block mb-1.5">Pegá tu firebaseConfig aquí</label>
                 <textarea value={fbConfigText} onChange={e=>{setFbConfigText(e.target.value);setFbConfigErr('');}}
                   placeholder={`{\n  "apiKey": "AIza...",\n  "authDomain": "tu-proyecto.firebaseapp.com",\n  "projectId": "tu-proyecto",\n  "storageBucket": "tu-proyecto.appspot.com",\n  "messagingSenderId": "123456789",\n  "appId": "1:123...:web:abc..."\n}`}
-                  className="w-full h-52 text-xs font-mono border border-slate-200 rounded-xl p-4 outline-none focus:ring-2 ring-indigo-100 resize-none bg-slate-50 text-slate-700 placeholder-slate-300"/>
+                  className="w-full h-52 text-3xl font-mono border border-slate-200 rounded-xl p-4 outline-none focus:ring-2 ring-indigo-100 resize-none bg-slate-50 text-slate-700 placeholder-slate-300"/>
                 {fbConfigErr&&(
                   <div className="mt-2 flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
                     <AlertCircle size={13} className="text-red-500 shrink-0 mt-0.5"/>
@@ -2036,11 +2108,11 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
               </div>
               <div className="flex items-start gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
                 <ShieldCheck size={13} className="text-slate-400 shrink-0 mt-0.5"/>
-                <p className="text-[10px] text-slate-500 font-medium leading-relaxed">Tu configuración se guarda localmente en este navegador. Nunca se envía a ningún servidor externo al de Firebase que vos mismo configuraste.</p>
+                <p className="text-sm text-slate-500 font-medium leading-relaxed">Tu configuración se guarda localmente en este navegador. Nunca se envía a ningún servidor externo al de Firebase que vos mismo configuraste.</p>
               </div>
               <div className="flex gap-3">
                 <button onClick={handleConnectFirebase} disabled={!fbConfigText.trim()}
-                  className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
+                  className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-bold text-3xl hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
                   <Database size={15}/>Conectar a Firebase
                 </button>
               </div>
@@ -2061,12 +2133,12 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
               <button onClick={()=>setEditingCell(null)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400"><X size={16}/></button>
             </div>
             <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase block mb-1.5">Materia</label>
+              <label className="text-sm font-black text-slate-500 uppercase block mb-1.5">Materia</label>
               <SubjectDropdown value={editingCell.subjectId} onChange={v=>setEditingCell(p=>({...p,subjectId:v}))} subjects={subjects}/>
-              <button onClick={()=>{setEditingCell(null);setActiveTab('subjects');}} className="text-[10px] text-indigo-500 font-bold mt-1.5 hover:underline">+ Gestionar materias</button>
+              <button onClick={()=>{setEditingCell(null);setActiveTab('subjects');}} className="text-sm text-indigo-500 font-bold mt-1.5 hover:underline">+ Gestionar materias</button>
             </div>
             <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase block mb-1.5">Docente</label>
+              <label className="text-sm font-black text-slate-500 uppercase block mb-1.5">Docente</label>
               <SearchableDropdown
                 value={editingCell.teacherId}
                 onChange={v=>setEditingCell(p=>({...p,teacherId:v}))}
@@ -2077,11 +2149,11 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
             </div>
             <div className="flex gap-3 pt-1">
               <button onClick={()=>saveCell(editingCell.key,{teacherId:'',subjectId:''})}
-                className="flex-1 py-2.5 rounded-xl font-bold text-sm border border-red-200 text-red-500 hover:bg-red-50 transition-colors flex items-center justify-center gap-2">
+                className="flex-1 py-2.5 rounded-xl font-bold text-3xl border border-red-200 text-red-500 hover:bg-red-50 transition-colors flex items-center justify-center gap-2">
                 <Trash2 size={13}/>Borrar
               </button>
               <button onClick={()=>saveCell(editingCell.key,{teacherId:editingCell.teacherId,subjectId:editingCell.subjectId})}
-                className="flex-[2] bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">
+                className="flex-[2] bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-3xl hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">
                 <Check size={13}/>Guardar
               </button>
             </div>
@@ -2099,12 +2171,12 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
               <button onClick={()=>setEditingTeacher(null)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400"><X size={16}/></button>
             </div>
             <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase block mb-1.5">Nombre completo</label>
+              <label className="text-sm font-black text-slate-500 uppercase block mb-1.5">Nombre completo</label>
               <input type="text" value={editingTeacher.name} onChange={e=>setEditingTeacher(p=>({...p,name:e.target.value}))}
-                placeholder="Apellido, Nombre" className="w-full text-sm border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 ring-indigo-100"/>
+                placeholder="Apellido, Nombre" className="w-full text-3xl border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 ring-indigo-100"/>
             </div>
             <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase block mb-2">Color</label>
+              <label className="text-sm font-black text-slate-500 uppercase block mb-2">Color</label>
               <div className="flex items-center gap-4">
                 <input
                   type="color"
@@ -2112,18 +2184,18 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                   onChange={e=>setEditingTeacher(p=>({...p, colorHex: e.target.value, color: ''}))}
                   className="w-12 h-12 rounded-xl border-2 border-slate-200 cursor-pointer p-0.5 hover:border-slate-400 transition-colors"
                 />
-                <div className="w-12 h-12 rounded-xl border-2 flex items-center justify-center text-lg font-black text-white shadow-sm"
+                <div className="w-12 h-12 rounded-xl border-2 flex items-center justify-center text-3xl font-black text-white shadow-sm"
                   style={{backgroundColor: editingTeacher.colorHex || '#6366f1', borderColor: editingTeacher.colorHex || '#6366f1'}}>
                   {editingTeacher.name?.charAt(0)?.toUpperCase() || '?'}
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-700">{editingTeacher.name || 'Docente'}</p>
-                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">{editingTeacher.colorHex || '#6366f1'}</p>
+                  <p className="text-sm text-slate-400 font-mono mt-0.5">{editingTeacher.colorHex || '#6366f1'}</p>
                 </div>
               </div>
             </div>
             <button onClick={()=>{if(editingTeacher.name.trim())saveTeacher(editingTeacher);}} disabled={!editingTeacher.name.trim()}
-              className="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700 disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
+              className="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-3xl hover:bg-indigo-700 disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
               <Check size={13}/>Guardar Docente
             </button>
           </div>
@@ -2140,15 +2212,15 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
               <button onClick={()=>setEditingSubject(null)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400"><X size={16}/></button>
             </div>
             <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase block mb-1.5">Nombre</label>
+              <label className="text-sm font-black text-slate-500 uppercase block mb-1.5">Nombre</label>
               <input autoFocus type="text" value={editingSubject.name} onChange={e=>setEditingSubject(p=>({...p,name:e.target.value}))}
-                placeholder="Ej: Matemática" className="w-full text-sm border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 ring-indigo-100"/>
-              {editingSubject.id!=='new'&&<p className="text-[10px] text-slate-400 mt-1.5">El cambio se aplica en todas las celdas del horario automáticamente.</p>}
+                placeholder="Ej: Matemática" className="w-full text-3xl border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 ring-indigo-100"/>
+              {editingSubject.id!=='new'&&<p className="text-sm text-slate-400 mt-1.5">El cambio se aplica en todas las celdas del horario automáticamente.</p>}
             </div>
             <button
               onClick={()=>{ if(!editingSubject.name.trim())return; editingSubject.id==='new'?addSubject(editingSubject.name):renameSubject(editingSubject.id,editingSubject.name); }}
               disabled={!editingSubject.name.trim()}
-              className="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700 disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
+              className="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-3xl hover:bg-indigo-700 disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
               <Check size={13}/>{editingSubject.id==='new'?'Crear':'Guardar'}
             </button>
           </div>
@@ -2162,7 +2234,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-5">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-black text-slate-800 text-base">Unificar {mergeModal.isTeachers?'docentes':'materias'}</h3>
+                <h3 className="font-black text-slate-800 text-2xl">Unificar {mergeModal.isTeachers?'docentes':'materias'}</h3>
                 <p className="text-xs text-slate-400 font-medium mt-0.5">{mergeModal.items.length} elementos seleccionados</p>
               </div>
               <button onClick={()=>setMergeModal(null)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400"><X size={16}/></button>
@@ -2171,7 +2243,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
               <p className="text-xs text-amber-800 font-medium">Elegí el nombre que querés <strong>conservar</strong>. Los demás quedarán eliminados y todas sus asignaciones se reasignarán automáticamente.</p>
             </div>
             <div>
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-wide mb-2">¿Cuál nombre conservar?</p>
+              <p className="text-sm font-black text-slate-500 uppercase tracking-wide mb-2">¿Cuál nombre conservar?</p>
               <div className="space-y-1.5">
                 {mergeModal.items.map(it=>(
                   <label key={it.id}
@@ -2179,8 +2251,8 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                       ${mergeKeepId===it.id?'border-indigo-500 bg-indigo-50':'border-slate-200 hover:border-slate-300 bg-white'}`}>
                     <input type="radio" name="mergeKeepId" value={it.id} checked={mergeKeepId===it.id} onChange={()=>setMergeKeepId(it.id)} className="accent-indigo-600 w-4 h-4 shrink-0"/>
                     <div className="flex-1 min-w-0">
-                      <span className="font-bold text-slate-800 text-sm block truncate">{it.name}</span>
-                      {it.subtitle&&<span className="text-[10px] text-slate-400 font-medium block truncate">{it.subtitle}</span>}
+                      <span className="font-bold text-slate-800 text-3xl block truncate">{it.name}</span>
+                      {it.subtitle&&<span className="text-sm text-slate-400 font-medium block truncate">{it.subtitle}</span>}
                     </div>
                     {mergeKeepId===it.id&&<Check size={14} className="text-indigo-600 shrink-0"/>}
                   </label>
@@ -2189,7 +2261,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
             </div>
             <div className="flex gap-3 pt-1">
               <button onClick={()=>setMergeModal(null)}
-                className="flex-1 py-2.5 rounded-xl font-bold text-sm border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
+                className="flex-1 py-2.5 rounded-xl font-bold text-3xl border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
                 Cancelar
               </button>
               <button onClick={()=>{
@@ -2198,7 +2270,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                   remove.forEach(r=>mergeModal.isTeachers?mergeTeachers(keep,r.id):mergeSubjects(keep,r.id));
                   setMergeModal(null); setSelectedItems(new Set());
                 }}
-                className="flex-[2] bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">
+                className="flex-[2] bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-3xl hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">
                 <Merge size={14}/>Confirmar unificación
               </button>
             </div>
