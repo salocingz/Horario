@@ -641,6 +641,7 @@ export default function App() {
   latestDataRef.current = { courses, teachers, subjects, schedule, lastReport, mappings, changeLog, acknowledgedConflicts: [...acknowledgedConflicts] };
   const seededFirebaseRef = useRef(false);
   const pendingWritesRef  = useRef(new Set()); // tracks in-flight writes to ignore echo snapshots
+  const lastWriteIdRef    = useRef('');         // string ID of our most recent write, embedded in Firestore doc
 
   useEffect(() => {
     loadSavedFBConfig().then(cfg => {
@@ -654,8 +655,13 @@ export default function App() {
 
     const unsub = fbSubscribe((data) => {
       if (data) {
-        // Skip snapshots triggered by our own writes — only accept external changes
-        if (pendingWritesRef.current.size > 0) {
+        // Skip snapshots triggered by our own writes — two independent checks:
+        // 1. pendingWritesRef.size > 0: write still in-flight (within 3s window)
+        // 2. data._writeId matches lastWriteIdRef: this IS our echo snapshot, even if timer expired
+        const isOwnEcho =
+          pendingWritesRef.current.size > 0 ||
+          (data._writeId && data._writeId === lastWriteIdRef.current);
+        if (isOwnEcho) {
           setCloudStatus('saved');
           return;
         }
@@ -736,14 +742,16 @@ export default function App() {
     setCloudStatus('syncing');
     try {
       if (fbReady) {
-        // Use a write-ID to robustly ignore our own echo snapshots
-        const writeId = Symbol();
+        // Generate a string writeId, embed it in the document so the listener
+        // can identify and discard our own echo snapshot even if the timer expired
+        const writeId = `${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+        lastWriteIdRef.current = writeId;
         pendingWritesRef.current.add(writeId);
         try {
-          await fbSave(data);
+          await fbSave({ ...data, _writeId: writeId });
         } finally {
-          // Keep write marked for 2s to absorb Firebase's echo snapshot
-          setTimeout(() => { pendingWritesRef.current.delete(writeId); }, 2000);
+          // Keep write marked for 3s to absorb Firebase's echo snapshot
+          setTimeout(() => { pendingWritesRef.current.delete(writeId); }, 3000);
         }
       } else {
         localStorage.setItem('horaria-v3', JSON.stringify(data));
@@ -1284,7 +1292,10 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
   }, [currentDay, courses, subjects, teachers, schedule]);
 
   // ── Schedule Grid (shared report component) ───────────────────────────────
-  const ScheduleGrid = useCallback(({ title, cellFn, modCount, conflictFn, conflictDetailFn }) => {
+  // ScheduleGrid must NOT be in useCallback — it receives cellFn/conflictFn as props
+  // on every render. Memoizing with [copyToExcel, exportPDF] caused stale closures
+  // and blank reports whenever the selection changed.
+  const ScheduleGrid = ({ title, cellFn, modCount, conflictFn, conflictDetailFn }) => {
     reportTitleRef.current = title;
     const classPeriods = FIXED_PERIODS.filter(p => p.type==='class' || p.type==='pe');
     return (
@@ -1356,7 +1367,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
         </div>
       </div>
     );
-  }, [copyToExcel, exportPDF]);
+  }; // end ScheduleGrid
 
   // ── Report render ─────────────────────────────────────────────────────────
   const renderReport = useMemo(() => {
@@ -1894,6 +1905,72 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                 {lastReport&&<p className="text-sm text-slate-400 font-medium mt-0.5">Última importación: {lastReport.date}</p>}
               </div>
             </div>
+            {/* ── Panel de integridad de datos ────────────────────────────── */}
+            {(() => {
+              const orphanTeacherSubject = Object.entries(schedule).filter(([, v]) => {
+                const teacherMissing = v.teacherId && !teachers.find(t => t.id === v.teacherId);
+                const subjectMissing = v.subjectId && !subjects.find(s => s.id === v.subjectId);
+                return teacherMissing || subjectMissing;
+              });
+              const orphanCourse = Object.entries(schedule).filter(([key]) => {
+                const cId = parseInt(key.split('-')[2]);
+                return !courses.find(c => c.id === cId);
+              });
+              const total = orphanTeacherSubject.length + orphanCourse.length;
+              const ok = total === 0;
+              return (
+                <div className={`rounded-2xl border p-4 flex items-start gap-3 ${ok ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-300'}`}>
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${ok ? 'bg-emerald-100' : 'bg-amber-100'}`}>
+                    {ok
+                      ? <ShieldCheck size={15} className="text-emerald-600"/>
+                      : <AlertTriangle size={15} className="text-amber-600"/>}
+                  </div>
+                  <div className="flex-1">
+                    <p className={`text-sm font-black ${ok ? 'text-emerald-700' : 'text-amber-700'}`}>
+                      {ok
+                        ? 'Integridad de datos: OK'
+                        : `Integridad de datos: ${total} celda${total !== 1 ? 's' : ''} con referencias rotas`}
+                    </p>
+                    {ok
+                      ? <p className="text-xs text-emerald-600 mt-0.5">Todas las celdas referencian docentes, materias y cursos válidos.</p>
+                      : (
+                        <div className="mt-1 space-y-0.5">
+                          {orphanTeacherSubject.length > 0 && (
+                            <p className="text-xs text-amber-700 font-medium">
+                              · {orphanTeacherSubject.length} celda{orphanTeacherSubject.length !== 1 ? 's' : ''} con docente o materia eliminado
+                            </p>
+                          )}
+                          {orphanCourse.length > 0 && (
+                            <p className="text-xs text-amber-700 font-medium">
+                              · {orphanCourse.length} celda{orphanCourse.length !== 1 ? 's' : ''} con curso eliminado
+                            </p>
+                          )}
+                          <button
+                            onClick={() => {
+                              if (!window.confirm('¿Limpiar celdas con referencias rotas? Podés deshacer con Ctrl+Z.')) return;
+                              setSchedule(cur => {
+                                const cleaned = { ...cur };
+                                [...orphanTeacherSubject, ...orphanCourse].forEach(([key]) => delete cleaned[key]);
+                                const { courses: c, teachers: t, subjects: s, lastReport: lr } = latestDataRef.current;
+                                pushHistory(cleaned);
+                                saveAll(c, t, s, cleaned, lr);
+                                return cleaned;
+                              });
+                            }}
+                            className="mt-2 px-3 py-1.5 text-xs font-bold bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors">
+                            Limpiar celdas rotas
+                          </button>
+                        </div>
+                      )
+                    }
+                  </div>
+                  <div className={`text-xs font-black px-2 py-1 rounded-lg shrink-0 ${ok ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-700'}`}>
+                    {Object.keys(schedule).length} celdas · {courses.length} cursos · {teachers.length} docentes · {subjects.length} materias
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Historial de cambios — arriba, mismo estilo que deduped */}
             <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
               <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
