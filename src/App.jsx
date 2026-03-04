@@ -237,7 +237,8 @@ function SubjectDropdown({ value, onChange, subjects }) {
 
 // ─── Alerts Panel ─────────────────────────────────────────────────────────────
 function AlertsPanel({ report, conflictList = [], allConflictList = [], acknowledgedConflicts = new Set(), onGoToConflict, onAcknowledge, liveCounts }) {
-  if (!report && allConflictList.length === 0) return (
+  // Show panel if there are conflicts OR a report — never hide conflicts
+  if (!report && allConflictList.length === 0 && conflictList.length === 0) return (
     <div className="flex flex-col items-center justify-center py-20 text-slate-300">
       <Bell size={40} className="mb-3"/>
       <p className="text-slate-400 font-bold text-base">Sin reportes de importación aún.</p>
@@ -991,10 +992,25 @@ export default function App() {
     return { allConflictList: list };
   }, [schedule, courses, teacherMap2]);
 
-  const conflictList = useMemo(() =>
-    allConflictList.filter(c => !acknowledgedConflicts.has(c.id)),
-    [allConflictList, acknowledgedConflicts]
-  );
+  const conflictList = useMemo(() => {
+    // Filter active (non-acknowledged) conflicts
+    const active = allConflictList.filter(c => !acknowledgedConflicts.has(c.id));
+    // Auto-clean acknowledged IDs that no longer exist in allConflictList
+    // (happens when a cell is edited and the conflict disappears)
+    const validIds = new Set(allConflictList.map(c => c.id));
+    const staleIds = [...acknowledgedConflicts].filter(id => !validIds.has(id));
+    if (staleIds.length > 0) {
+      // Remove stale IDs from state (async to avoid render-during-render)
+      setTimeout(() => {
+        setAcknowledgedConflicts(prev => {
+          const cleaned = new Set(prev);
+          staleIds.forEach(id => cleaned.delete(id));
+          return cleaned;
+        });
+      }, 0);
+    }
+    return active;
+  }, [allConflictList, acknowledgedConflicts]);
 
   const conflictKeys = useMemo(() => {
     const keys = new Set();
@@ -1060,11 +1076,14 @@ export default function App() {
       const detail = `${day} Mód.${period?.mod||'?'} · ${courseName}` + (subjName ? ` → ${subjName}` : '') + (teachName ? ` / ${teachName}` : '');
       const newLog = [{ id: Date.now(), ts, date, action, detail }, ...cl].slice(0, 200);
 
-      // Single atomic write: schedule + log together, no second write from logChange
+      // CRITICAL: update latestDataRef.current BEFORE calling saveAll so that
+      // any subsequent reads (e.g. from the Firebase listener echo) see the
+      // new schedule, not the stale one. Then do a single atomic write.
+      latestDataRef.current = { ...latestDataRef.current, schedule: ns2, changeLog: newLog };
       pushHistory(ns2);
       saveAll(c, t, s, ns2, lr, m, newLog, new Set(ack));
-      // Update changeLog state without triggering another saveAll
-      setTimeout(() => setChangeLog(newLog), 0);
+      // setChangeLog inline — no setTimeout, no extra async render cycle
+      setChangeLog(newLog);
       return ns2;
     });
     setEditingCell(null);
@@ -1370,7 +1389,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
   }; // end ScheduleGrid
 
   // ── Report render ─────────────────────────────────────────────────────────
-  const renderReport = useMemo(() => {
+  const renderReport = () => {
     if (!reportSelection) return (
       <div className="flex flex-col items-center justify-center py-20">
         <BarChart3 size={44} className="text-slate-200 mb-4"/>
@@ -1454,8 +1473,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
         }}/>
       );
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reportType, reportSelection, teachers, subjects, courses, schedule, conflictKeys, subjectMap, teacherMap2, coursesMap, teacherUsage, ScheduleGrid]);
+  }; // end renderReport
 
 
   const tabs = [
