@@ -527,7 +527,10 @@ function useFirestore(fbConfig) {
   const save = React.useCallback(async (data) => {
     if (!readyRef.current || !opsRef.current) return false;
     const { db, doc, setDoc } = opsRef.current;
-    await setDoc(doc(db, docPath), { ...data, _ts: Date.now() }, { merge: true });
+    // CRITICAL: must NOT use merge:true — Firestore merge never deletes existing keys.
+    // When a schedule cell is deleted, the key must be absent from the doc entirely.
+    // Full document replace is the only correct approach.
+    await setDoc(doc(db, docPath), { ...data, _ts: Date.now() });
     return true;
   }, []);
 
