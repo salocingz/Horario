@@ -448,14 +448,14 @@ async function loadFirebase(config) {
       import(FIREBASE_CDN + 'firebase-firestore.js'),
       import(FIREBASE_CDN + 'firebase-auth.js'),
     ]);
-    window._fbApp = initializeApp(config, 'masterschedule');
+    window._fbApp = initializeApp(config, 'horaria');
     window._fbFirestore = getFirestore(window._fbApp);
     window._fbAuth = getAuth(window._fbApp);
     window._fbOps = { doc, setDoc, onSnapshot, getDoc, signInAnonymously };
   }
   return { db: window._fbFirestore, auth: window._fbAuth, ...window._fbOps };
 }
-const FB_CONFIG_KEY = 'masterschedule-firebase-config';
+const FB_CONFIG_KEY = 'horaria-firebase-config';
 async function loadSavedFBConfig() {
   try { const v = localStorage.getItem(FB_CONFIG_KEY); if (v) return JSON.parse(v); } catch(_) {}
   return null;
@@ -671,7 +671,7 @@ export default function App() {
     if (fbConfig) return;
     (async () => {
       try {
-        const raw = localStorage.getItem('masterschedule-v3');
+        const raw = localStorage.getItem('horaria-v3');
         if (raw) {
           const d = JSON.parse(raw);
           if (d.courses)    setCourses(d.courses);
@@ -708,7 +708,7 @@ export default function App() {
         // Keep flag up for 1.5s to absorb the echo snapshot Firebase sends back
         setTimeout(() => { pendingWriteRef.current = Math.max(0, pendingWriteRef.current - 1); }, 1500);
       } else {
-        localStorage.setItem('masterschedule-v3', JSON.stringify(data));
+        localStorage.setItem('horaria-v3', JSON.stringify(data));
       }
       setCloudStatus('saved');
     } catch (_) {
@@ -1249,19 +1249,19 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table ref={reportTableRef} className="w-full text-left border-collapse">
+            <table ref={reportTableRef} className="w-full text-left border-collapse text-sm">
               <thead>
-                <tr className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase">
-                  <th className="p-3 border-b border-r border-slate-200 w-20 text-center">Mód.</th>
-                  {DAYS.map(d => <th key={d} className="p-3 border-b border-r border-slate-200 min-w-[140px]">{d}</th>)}
+                <tr className="bg-slate-50 text-xs font-black text-slate-500 uppercase">
+                  <th className="p-3 border-b border-r border-slate-200 w-24 text-center">Mód.</th>
+                  {DAYS.map(d => <th key={d} className="p-3 border-b border-r border-slate-200 min-w-[160px]">{d}</th>)}
                 </tr>
               </thead>
               <tbody>
                 {classPeriods.map(p => (
                   <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
                     <td className="p-3 border-b border-r border-slate-100 bg-slate-50/70 text-center align-middle">
-                      <div className={`text-[11px] font-black leading-none ${p.type==='pe'?'text-emerald-600':'text-indigo-600'}`}>{p.mod}°</div>
-                      <div className="text-[8px] text-slate-400 font-bold mt-1">{p.start}–{p.end}</div>
+                      <div className={`text-sm font-black leading-none ${p.type==='pe'?'text-emerald-600':'text-indigo-600'}`}>{p.mod}°</div>
+                      <div className="text-xs text-slate-400 font-bold mt-1">{p.start}–{p.end}</div>
                     </td>
                     {DAYS.map((_, dI) => {
                       const cell = cellFn(dI, p);
@@ -1271,13 +1271,13 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                         <td key={dI} className={"p-2 border-b border-r align-top " + (isConflict ? "border-red-300 bg-red-50" : "border-slate-100")}>
                           {cell ? (
                             <div>
-                              <div className={"text-[11px] font-bold leading-snug " + (isConflict ? "text-red-700" : "text-slate-800")}>{cell.top}</div>
-                              {cell.bottom && <div className={"text-[9px] font-bold uppercase mt-0.5 " + (isConflict ? "text-red-400" : "text-slate-400")}>{cell.bottom}</div>}
+                              <div className={"text-sm font-bold leading-snug " + (isConflict ? "text-red-700" : "text-slate-800")}>{cell.top}</div>
+                              {cell.bottom && <div className={"text-xs font-bold uppercase mt-0.5 " + (isConflict ? "text-red-400" : "text-slate-400")}>{cell.bottom}</div>}
                               {isConflict && (
                                 <div className="mt-1 bg-red-100 border border-red-200 rounded px-1.5 py-1">
-                                  <div className="text-[8px] text-red-600 font-black uppercase tracking-wide mb-0.5">⚠ Conflicto</div>
+                                  <div className="text-xs text-red-600 font-black uppercase tracking-wide mb-0.5">⚠ Conflicto</div>
                                   {conflictDetail && conflictDetail.map((d,i) => (
-                                    <div key={i} className="text-[8px] text-red-500 font-bold leading-tight">{d}</div>
+                                    <div key={i} className="text-xs text-red-500 font-bold leading-tight">{d}</div>
                                   ))}
                                 </div>
                               )}
@@ -1468,7 +1468,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
         </div>
       )}
 
-      <main className="p-3 md:p-5 max-w-[1400px] mx-auto">
+      <main className="p-3 md:p-5">
 
         {/* ══ GRILLA ══════════════════════════════════════════════════════════ */}
         {activeTab==='grid'&&(
@@ -1533,15 +1533,15 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                   <table className="w-full border-separate border-spacing-0 table-fixed">
                     <thead className="sticky top-0 z-20">
                       <tr className={gridScrolled?'bg-white shadow-sm':'bg-slate-50'} style={{transition:'background 0.2s'}}>
-                        <th className={`p-2.5 border-b border-r border-slate-200 text-[10px] font-bold text-slate-500 uppercase w-16 sticky left-0 z-30 ${gridScrolled?'bg-white':'bg-slate-50'}`}>Mód.</th>
-                        {courses.map(c=><th key={c.id} className={`p-2.5 border-b border-r border-slate-200 text-[11px] font-bold text-slate-700 text-left ${gridScrolled?'bg-white':'bg-slate-50'}`} style={{width:'140px',maxWidth:'140px',minWidth:'140px'}}><span className="block truncate">{c.name}</span></th>)}
+                        <th className={`p-2.5 border-b border-r border-slate-200 text-xs font-bold text-slate-500 uppercase w-16 sticky left-0 z-30 ${gridScrolled?'bg-white':'bg-slate-50'}`}>Mód.</th>
+                        {courses.map(c=><th key={c.id} className={`p-2.5 border-b border-r border-slate-200 text-sm font-bold text-slate-700 text-left ${gridScrolled?'bg-white':'bg-slate-50'}`} style={{width:'180px',maxWidth:'180px',minWidth:'160px'}}><span className="block truncate">{c.name}</span></th>)}
                       </tr>
                     </thead>
                     <tbody>
                       {FIXED_PERIODS.map(period=>{
                         if (period.type==='break'||period.type==='separator') return (
                           <tr key={period.id}><td colSpan={courses.length+1}
-                            className={`py-1.5 px-4 text-center text-[10px] font-black uppercase tracking-widest border-b
+                            className={`py-1.5 px-4 text-center text-xs font-black uppercase tracking-widest border-b
                               ${period.type==='break'?'bg-slate-50 text-slate-400':'bg-indigo-50 text-indigo-400'}`}>
                             {period.label}
                           </td></tr>
@@ -1549,9 +1549,9 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                         return (
                           <tr key={period.id} className="group">
                             <td className="p-2 border-b border-r border-slate-100 text-center sticky left-0 bg-white z-10 group-hover:bg-slate-50/70 transition-colors">
-                              <span className={`text-[11px] font-black block ${period.type==='pe'?'text-emerald-600':'text-indigo-600'}`}>{period.mod}°</span>
-                              <span className="text-[8px] text-slate-400 font-bold block leading-tight">{period.start}</span>
-                              <span className="text-[8px] text-slate-400 font-bold block leading-tight">{period.end}</span>
+                              <span className={`text-sm font-black block ${period.type==='pe'?'text-emerald-600':'text-indigo-600'}`}>{period.mod}°</span>
+                              <span className="text-[10px] text-slate-400 font-bold block leading-tight">{period.start}</span>
+                              <span className="text-[10px] text-slate-400 font-bold block leading-tight">{period.end}</span>
                             </td>
                             {courses.map(course=>{
                               const key         = `${currentDay}-${period.id}-${course.id}`;
@@ -1563,15 +1563,15 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
                               const dimmed      = searchTerm&&!highlighted&&!!cell;
                               return (
                                 <td key={course.id}
-                                  style={{width:'140px',maxWidth:'140px',overflow:'hidden'}}
+                                  style={{width:'180px',maxWidth:'180px',overflow:'hidden'}}
                                   className={`p-1.5 border-b border-r border-slate-100 cursor-pointer transition-colors ${highlighted?'bg-yellow-50':'hover:bg-slate-50/60'}`}
                                   onClick={()=>openCellEditor(period.id,course.id)}>
                                   {cell?(
                                     <div className={`rounded-lg p-2 border h-full transition-all ${dimmed?'opacity-20':''} ${hasConflict?'border-red-300 bg-red-50 text-red-700':'border-slate-200'}`}
                                       style={!hasConflict && teacher?.colorHex ? teacherStyle(teacher.colorHex) : {}}>
-                                      <div className="text-[10px] font-bold leading-snug truncate overflow-hidden whitespace-nowrap">{subject?.name??<span className="italic text-slate-400">Sin materia</span>}</div>
-                                      <div className="text-[8px] opacity-70 font-bold uppercase truncate overflow-hidden whitespace-nowrap mt-0.5">{teacher?.name??<span className="text-slate-300">Sin docente</span>}</div>
-                                      {hasConflict&&<div className="flex items-center gap-0.5 mt-1"><AlertTriangle size={8} className="text-red-500 shrink-0"/><span className="text-[8px] text-red-500 font-bold">Conflicto</span></div>}
+                                      <div className="text-xs font-bold leading-snug truncate overflow-hidden whitespace-nowrap">{subject?.name??<span className="italic text-slate-400">Sin materia</span>}</div>
+                                      <div className="text-[10px] opacity-70 font-bold uppercase truncate overflow-hidden whitespace-nowrap mt-0.5">{teacher?.name??<span className="text-slate-300">Sin docente</span>}</div>
+                                      {hasConflict&&<div className="flex items-center gap-0.5 mt-1"><AlertTriangle size={8} className="text-red-500 shrink-0"/><span className="text-[10px] text-red-500 font-bold">Conflicto</span></div>}
                                     </div>
                                   ):(
                                     <div className="rounded-lg p-2 border border-dashed border-transparent hover:border-slate-200 h-full min-h-[44px] flex items-center justify-center">
@@ -1751,7 +1751,7 @@ small{font-size:5.5pt;color:#94a3b8;display:block;}
 
         {/* ══ REPORTES ════════════════════════════════════════════════════════ */}
         {activeTab==='reports'&&(
-          <div className="space-y-4">
+          <div className="space-y-4 w-full">
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap gap-4 items-end">
               <div>
                 <label className="text-[10px] font-black text-slate-500 uppercase block mb-1.5">Tipo</label>
