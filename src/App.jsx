@@ -204,7 +204,7 @@ function SubjectDropdown({ value, onChange, subjects }) {
 
 
 // ─── Alerts Panel ─────────────────────────────────────────────────────────────
-function AlertsPanel({ report, conflictList = [], onGoToConflict }) {
+function AlertsPanel({ report, conflictList = [], onGoToConflict, liveCounts }) {
   if (!report && conflictList.length === 0) return (
     <div className="flex flex-col items-center justify-center py-20 text-slate-300">
       <Bell size={40} className="mb-3"/>
@@ -213,7 +213,7 @@ function AlertsPanel({ report, conflictList = [], onGoToConflict }) {
   );
   const hasIssues = report && (report.warnings.length > 0 || report.deduped.length > 0 || report.skipped.length > 0);
   return (
-    <div className="space-y-4 max-w-2xl mx-auto">
+    <div className="space-y-4">
       {/* Conflict alerts — always shown at top */}
       {conflictList.length > 0 && (
         <div className="bg-white border border-red-200 rounded-2xl overflow-hidden shadow-sm">
@@ -246,13 +246,13 @@ function AlertsPanel({ report, conflictList = [], onGoToConflict }) {
 
       {report && (
         <>
-          {/* Summary cards */}
+          {/* Summary cards — live counts when available */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              { label:'Cursos',    value: report.courses,   color:'indigo' },
-              { label:'Docentes',  value: report.teachers,  color:'indigo' },
-              { label:'Materias',  value: report.subjects,  color:'indigo' },
-              { label:'Módulos',   value: report.imported,  color:'emerald'},
+              { label:'Cursos',    value: liveCounts?.courses   ?? report.courses,   color:'indigo' },
+              { label:'Docentes',  value: liveCounts?.teachers  ?? report.teachers,  color:'indigo' },
+              { label:'Materias',  value: liveCounts?.subjects  ?? report.subjects,  color:'indigo' },
+              { label:'Módulos',   value: liveCounts?.modules   ?? report.imported,  color:'emerald'},
             ].map(s => (
               <div key={s.label} className={`rounded-2xl p-4 text-center border ${s.color==='emerald'?'bg-emerald-50 border-emerald-100':'bg-indigo-50 border-indigo-100'}`}>
                 <div className={`text-2xl font-black ${s.color==='emerald'?'text-emerald-600':'text-indigo-600'}`}>{s.value}</div>
@@ -289,7 +289,7 @@ function AlertsPanel({ report, conflictList = [], onGoToConflict }) {
               </div>
               <div className="divide-y divide-slate-100 max-h-48 overflow-y-auto">
                 {report.deduped.map((d,i) => (
-                  <div key={i} className="px-4 py-2.5 flex items-center gap-2 text-xs">
+                  <div key={i} className="px-4 py-2.5 flex items-center gap-2 text-sm">
                     <span className="text-slate-400 line-through">{d.from}</span>
                     <ArrowRight size={10} className="text-slate-300 shrink-0"/>
                     <span className="font-bold text-slate-700">{d.to}</span>
@@ -758,6 +758,12 @@ export default function App() {
     const handler = (e) => {
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') { e.preventDefault(); undo(); }
       if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); redo(); }
+      if (e.key === 'Escape') {
+        setEditingCell(null);
+        setEditingTeacher(null);
+        setEditingSubject(null);
+        setMergeModal(null);
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -1004,6 +1010,9 @@ export default function App() {
 
   // ── Report refs & export ─────────────────────────────────────────────────
   const reportTableRef = useRef(null);
+  const gridTableRef   = useRef(null);
+  const gridScrollRef  = useRef(null);
+  const [gridScrolled, setGridScrolled] = useState(false);
   const reportTitleRef = useRef('Reporte');
 
   const copyToExcel = useCallback(() => {
@@ -1054,6 +1063,70 @@ window.print();window.onafterprint=()=>window.close();
     if (!win) window.location.href = url;
     setTimeout(() => URL.revokeObjectURL(url), 10000);
   }, []);
+
+  // ── Grid export (main schedule grid) ────────────────────────────────────
+  const exportGridPDF = useCallback(() => {
+    const day = DAYS[currentDay] || 'Día';
+    const date = new Date().toLocaleDateString('es-AR');
+    // Build table HTML from current schedule
+    const classPeriods = FIXED_PERIODS.filter(p => p.type==='class' || p.type==='pe');
+    const courseHeaders = courses.map(c => `<th>${c.name}</th>`).join('');
+    const rows = classPeriods.map(p => {
+      const cells = courses.map(course => {
+        const key = `${currentDay}-${p.id}-${course.id}`;
+        const cell = schedule[key];
+        const subj = cell?.subjectId ? subjects.find(s => s.id === cell.subjectId)?.name || '' : '';
+        const tch  = cell?.teacherId ? teachers.find(t => t.id === cell.teacherId)?.name || '' : '';
+        return `<td><div class="top">${subj || '—'}</div>${tch ? `<div class="bot">${tch}</div>` : ''}</td>`;
+      }).join('');
+      return `<tr><td class="mod">${p.mod}°<br/><small>${p.start}–${p.end}</small></td>${cells}</tr>`;
+    }).join('');
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/><title>Grilla ${day}</title>
+<style>
+@page{size:A4 landscape;margin:12mm 14mm;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:Arial,sans-serif;font-size:8pt;color:#1e293b;}
+h1{font-size:13pt;font-weight:900;margin-bottom:2mm;text-transform:uppercase;}
+.meta{font-size:7pt;color:#94a3b8;margin-bottom:5mm;}
+table{width:100%;border-collapse:collapse;}
+th{background:#4f46e5;color:#fff;font-size:7pt;font-weight:700;padding:4px 5px;text-align:left;border:1px solid #3730a3;}
+td{padding:4px 5px;border:1px solid #e2e8f0;font-size:7.5pt;vertical-align:top;}
+td.mod{background:#f1f5f9!important;font-weight:700;text-align:center;white-space:nowrap;width:48px;}
+tr:nth-child(even) td:not(.mod){background:#f8fafc;}
+.top{font-weight:700;color:#1e293b;}
+.bot{font-size:6.5pt;color:#64748b;margin-top:1px;text-transform:uppercase;}
+small{font-size:5.5pt;color:#94a3b8;display:block;}
+</style></head><body>
+<h1>Grilla: ${day}</h1><p class="meta">Horaria · ${date}</p>
+<table><thead><tr><th>Mód.</th>${courseHeaders}</tr></thead><tbody>${rows}</tbody></table>
+<script>window.print();window.onafterprint=()=>window.close();<\/script>
+</body></html>`;
+    const blob = new Blob([html], { type: 'text/html' });
+    const url  = URL.createObjectURL(blob);
+    const win  = window.open(url, '_blank');
+    if (!win) window.location.href = url;
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }, [currentDay, courses, subjects, teachers, schedule]);
+
+  const exportGridExcel = useCallback(() => {
+    const day = DAYS[currentDay] || 'Día';
+    const classPeriods = FIXED_PERIODS.filter(p => p.type==='class' || p.type==='pe');
+    const header = ['Mód.', ...courses.map(c => c.name)].join('\t');
+    const rows = classPeriods.map(p => {
+      const cells = courses.map(course => {
+        const key = `${currentDay}-${p.id}-${course.id}`;
+        const cell = schedule[key];
+        const subj = cell?.subjectId ? subjects.find(s => s.id === cell.subjectId)?.name || '' : '';
+        const tch  = cell?.teacherId ? teachers.find(t => t.id === cell.teacherId)?.name || '' : '';
+        return subj ? (tch ? subj + ' / ' + tch : subj) : '';
+      }).join('\t');
+      return p.mod + '°\t' + cells;
+    }).join('\n');
+    const tsv = day + '\n' + header + '\n' + rows;
+    navigator.clipboard.writeText(tsv)
+      .then(() => showMsg('Copiado — abrí Excel y pegá con Ctrl+V'))
+      .catch(() => showMsg('No se pudo acceder al portapapeles.', 'error'));
+  }, [currentDay, courses, subjects, teachers, schedule]);
 
   // ── Schedule Grid (shared report component) ───────────────────────────────
   const ScheduleGrid = useCallback(({ title, cellFn, modCount, conflictFn, conflictDetailFn }) => {
@@ -1319,13 +1392,28 @@ window.print();window.onafterprint=()=>window.close();
                 ))}
               </div>
               <div className="flex items-center gap-2 px-3 py-2">
+                {/* Search — icons vertically centered with leading-none to avoid descender shift */}
                 <div className="relative flex-1 max-w-xs">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={12}/>
+                  <Search className="absolute left-2.5 top-0 bottom-0 my-auto text-slate-400 pointer-events-none" style={{height:'12px',width:'12px'}} size={12}/>
                   <input type="text" placeholder="Buscar docente o materia…"
-                    className="w-full text-xs border border-slate-200 rounded-lg pl-8 pr-7 py-1.5 outline-none focus:ring-2 ring-indigo-100"
+                    className="w-full text-xs border border-slate-200 rounded-lg pl-8 pr-7 py-1.5 leading-none outline-none focus:ring-2 ring-indigo-100"
                     value={searchTerm} onChange={e=>setSearchTerm(e.target.value)}/>
-                  {searchTerm&&<button onClick={()=>setSearchTerm('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400"><X size={11}/></button>}
+                  {searchTerm&&<button onClick={()=>setSearchTerm('')} className="absolute right-2 top-0 bottom-0 my-auto flex items-center text-slate-400 h-full"><X size={11}/></button>}
                 </div>
+                {/* Export buttons */}
+                {courses.length>0&&(
+                  <div className="flex gap-1">
+                    <button onClick={exportGridExcel} title="Copiar para Excel"
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors">
+                      <Copy size={12}/><span className="hidden sm:inline">Excel</span>
+                    </button>
+                    <button onClick={exportGridPDF} title="Exportar PDF"
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors">
+                      <Download size={12}/><span className="hidden sm:inline">PDF</span>
+                    </button>
+                  </div>
+                )}
+                {/* Undo/redo — right side */}
                 <div className="flex gap-1 ml-auto">
                   <button onClick={undo} disabled={historyIdx_s<=0} title="Deshacer (Ctrl+Z)"
                     className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
@@ -1347,10 +1435,11 @@ window.print();window.onafterprint=()=>window.close();
               </div>
             ) : (
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="overflow-auto" style={{maxHeight:'calc(100vh - 175px)'}}>
+                <div ref={gridScrollRef} className="overflow-auto" style={{maxHeight:'calc(100vh - 175px)'}}
+                  onScroll={e=>setGridScrolled(e.currentTarget.scrollTop>4)}>
                   <table className="w-full border-separate border-spacing-0 table-fixed">
                     <thead className="sticky top-0 z-20">
-                      <tr className="bg-slate-50">
+                      <tr className={gridScrolled?'bg-slate-200':'bg-slate-50'} style={{transition:'background 0.2s'}}>
                         <th className="p-2.5 border-b border-r border-slate-200 text-[10px] font-bold text-slate-500 uppercase w-16 sticky left-0 bg-slate-50 z-30">Mód.</th>
                         {courses.map(c=><th key={c.id} className="p-2.5 border-b border-r border-slate-200 text-[11px] font-bold text-slate-700 text-left" style={{width:'140px',maxWidth:'140px',minWidth:'140px'}}><span className="block truncate">{c.name}</span></th>)}
                       </tr>
@@ -1642,16 +1731,7 @@ window.print();window.onafterprint=()=>window.close();
                 {lastReport&&<p className="text-xs text-slate-400 font-medium mt-0.5">Última importación: {lastReport.date}</p>}
               </div>
             </div>
-            <AlertsPanel
-              report={lastReport}
-              conflictList={conflictList}
-              onGoToConflict={(c) => {
-                setSearchTerm(c.teacher?.name || '');
-                setCurrentDay(c.dayIdx);
-                setActiveTab('grid');
-              }}
-            />
-            {/* Historial de cambios */}
+            {/* Historial de cambios — arriba, mismo estilo que deduped */}
             <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
               <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                 <div className="flex items-center gap-2">
@@ -1662,17 +1742,29 @@ window.print();window.onafterprint=()=>window.close();
               </div>
               <div className="divide-y divide-slate-100 overflow-y-auto" style={{maxHeight:'240px'}}>
                 {changeLog.length===0
-                  ? <div className="px-4 py-3 text-xs text-slate-400">Sin cambios registrados aún.</div>
+                  ? <div className="px-4 py-2.5 text-sm text-slate-400">Sin cambios registrados aún.</div>
                   : changeLog.map(entry=>(
-                    <div key={entry.id} className="px-4 py-2.5 flex items-center gap-2 text-xs">
-                      <span className="text-slate-300 shrink-0 font-mono">{entry.date} {entry.ts}</span>
+                    <div key={entry.id} className="px-4 py-2.5 flex items-center gap-2 text-sm">
+                      <span className="text-slate-400 shrink-0 font-mono">{entry.date} {entry.ts}</span>
                       <ArrowRight size={10} className="text-slate-300 shrink-0"/>
-                      <span className="font-bold text-slate-700 truncate">{entry.action} · {entry.detail}</span>
+                      <span className="text-blue-600 font-bold shrink-0">{entry.action}</span>
+                      <span className="text-slate-300 shrink-0">·</span>
+                      <span className="font-medium text-slate-700 truncate">{entry.detail}</span>
                     </div>
                   ))
                 }
               </div>
             </div>
+            <AlertsPanel
+              report={lastReport}
+              conflictList={conflictList}
+              liveCounts={{ courses: courses.length, teachers: teachers.length, subjects: subjects.length, modules: Object.keys(schedule).length }}
+              onGoToConflict={(c) => {
+                setSearchTerm(c.teacher?.name || '');
+                setCurrentDay(c.dayIdx);
+                setActiveTab('grid');
+              }}
+            />
           </div>
         )}
 
